@@ -1,0 +1,31 @@
+camera:
+  device_index: 0
+  fps: 30
+  frame_height: 480
+  frame_width: 640
+detection:
+  confidence_threshold: 0.5
+  full_alert_frames: 30
+  pre_alert_frames: 10
+  risk_zone:
+    height: 1.0
+    width: 1.0
+    x: 0.0
+    y: 0.0
+logging:
+  file: clawcamkeeper.log
+  level: INFO
+risk_apps:
+- chrome.exe
+- msedge.exe
+- firefox.exe
+- code.exe
+- WeChat.exe
+- QQ.exe
+safe_window:
+  backup: calc.exe
+  primary: notepad.exe
+webui:
+  debug: false
+  host: 127.0.0.1
+  port: 8765

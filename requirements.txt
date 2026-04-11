@@ -1,0 +1,23 @@
+# ClawCamKeeper-skill 依赖文件
+
+# 核心依赖
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+numpy>=1.24.0
+
+# CLI 依赖
+click>=8.1.0
+pyyaml>=6.0
+
+# WebUI 依赖
+fastapi>=0.104.0
+uvicorn>=0.24.0
+jinja2>=3.1.0
+
+# Windows 窗口控制
+pywin32>=306
+pywinauto>=0.6.8
+
+# 工具库
+python-dotenv>=1.0.0
+loguru>=0.7.0

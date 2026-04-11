@@ -1,0 +1,6 @@
+.ace-tool/
+/core/__pycache__
+/cli/__pycache__
+/webui/__pycache__
+*.log
+/__pycache__
