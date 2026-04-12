@@ -84,11 +84,71 @@ class MonitorEngine:
         # 注册状态变化监听
         self.state_machine.add_listener(self._on_state_changed)
 
+        # 性能观测
+        self._perf_lock = threading.Lock()
+        self._perf = {
+            "engine": {
+                "last_initialize_ms": 0.0,
+                "last_arm_ms": 0.0,
+                "last_disarm_ms": 0.0,
+                "last_recover_ms": 0.0,
+                "last_status_ms": 0.0,
+                "last_doctor_ms": 0.0,
+                "last_events_ms": 0.0,
+                "last_reload_config_ms": 0.0,
+                "last_action_test_ms": 0.0,
+                "last_availability_refresh_ms": 0.0,
+                "last_full_alert_ms": 0.0,
+                "last_availability_source": None,
+                "last_status_timestamp": None,
+                "last_doctor_timestamp": None,
+            },
+            "monitor": {
+                "iterations": 0,
+                "last_loop_ms": 0.0,
+                "last_state": None,
+            },
+        }
+
     def _apply_runtime_config(self):
         """把配置同步到引擎级运行时字段"""
         det_config = self.config.get("detection", {})
         self.pre_alert_frames = det_config.get("pre_alert_frames", 10)
         self.full_alert_frames = det_config.get("full_alert_frames", 30)
+
+    def _elapsed_ms(self, start: float, end: Optional[float] = None) -> float:
+        """将 perf_counter 时间差换算为毫秒"""
+        if end is None:
+            end = time.perf_counter()
+        return round((end - start) * 1000, 2)
+
+    def _update_engine_perf(self, **kwargs):
+        """更新引擎级性能信息"""
+        with self._perf_lock:
+            self._perf["engine"].update(kwargs)
+
+    def _update_monitor_perf(self, **kwargs):
+        """更新监控循环性能信息"""
+        with self._perf_lock:
+            self._perf["monitor"].update(kwargs)
+
+    def get_perf_snapshot(self) -> dict:
+        """获取当前性能快照"""
+        with self._perf_lock:
+            perf = deepcopy(self._perf)
+
+        detector_perf = {}
+        if self.detector:
+            detector_perf = self.detector.get_camera_status().get("perf", {})
+        elif isinstance(self._last_camera_probe_status, dict):
+            detector_perf = self._last_camera_probe_status.get("perf", {})
+
+        perf["detector"] = detector_perf or {}
+        perf["action_chain"] = {
+            "last_switch": self.action_chain.get_last_switch_diagnostics(),
+            "last_minimize": self.action_chain.get_last_minimize_diagnostics(),
+        }
+        return perf
 
     def _probe_camera_availability(self, source: str = "runtime_probe") -> tuple[bool, dict]:
         """探测摄像头可用性；检测器运行中时直接复用运行时状态"""
@@ -109,6 +169,7 @@ class MonitorEngine:
 
     def _refresh_component_availability(self, camera_source: str = "runtime_refresh") -> dict:
         """刷新摄像头、动作链路与安全窗口可用性"""
+        started_at = time.perf_counter()
         camera_available, camera_status = self._probe_camera_availability(camera_source)
         self._last_camera_probe_status = camera_status
 
@@ -125,12 +186,20 @@ class MonitorEngine:
             safe_window=safe_window_available,
         )
 
-        return {
+        availability = {
             "camera_available": camera_available,
             "camera_status": camera_status,
             "action_chain_available": action_chain_available,
             "safe_window_available": safe_window_available,
+            "timings": {
+                "total_ms": self._elapsed_ms(started_at),
+            },
         }
+        self._update_engine_perf(
+            last_availability_refresh_ms=availability["timings"]["total_ms"],
+            last_availability_source=camera_source,
+        )
+        return availability
 
     def _add_event(self, event_type: str, message: str, data: dict = None):
         """添加事件记录"""
@@ -142,9 +211,12 @@ class MonitorEngine:
 
     def get_events(self, limit: int = 20) -> List[dict]:
         """获取最近的事件记录"""
+        started_at = time.perf_counter()
         with self._events_lock:
             events = self._events[-limit:]
-            return [e.to_dict() for e in reversed(events)]
+            result = [e.to_dict() for e in reversed(events)]
+        self._update_engine_perf(last_events_ms=self._elapsed_ms(started_at))
+        return result
 
     def set_on_state_change(self, callback: Callable[[SystemState], None]):
         """设置状态变化回调"""
@@ -164,6 +236,7 @@ class MonitorEngine:
         Phase 2 增强：更详细的健康检查
         Returns: (success, message)
         """
+        started_at = time.perf_counter()
         availability = self._refresh_component_availability(camera_source="initialize_probe")
         camera_available = availability["camera_available"]
         action_available = availability["action_chain_available"]
@@ -191,6 +264,8 @@ class MonitorEngine:
         elif not primary_ok:
             warnings.append(f"主安全窗口不可用，将使用备选: {self.action_chain.backup_safe_app}")
 
+        total_ms = self._elapsed_ms(started_at)
+        self._update_engine_perf(last_initialize_ms=total_ms)
         if issues:
             return False, f"初始化失败: {', '.join(issues)}"
 
@@ -203,6 +278,9 @@ class MonitorEngine:
                 "safe_window_primary": primary_ok,
                 "safe_window_backup": backup_ok,
                 "warnings": warnings,
+                "timings": {
+                    "total_ms": total_ms,
+                },
             },
         )
 
@@ -214,16 +292,20 @@ class MonitorEngine:
 
     def arm(self) -> tuple[bool, str]:
         """武装系统"""
+        started_at = time.perf_counter()
         availability = self._refresh_component_availability(camera_source="arm_probe")
         state = self.state_machine.state
         action_chain_available = availability["action_chain_available"]
         safe_window_available = availability["safe_window_available"]
 
         if not state.camera_available:
+            self._update_engine_perf(last_arm_ms=self._elapsed_ms(started_at))
             return False, "摄像头不可用，无法武装"
         if not action_chain_available:
+            self._update_engine_perf(last_arm_ms=self._elapsed_ms(started_at))
             return False, "动作链路不可用，无法武装"
         if not safe_window_available:
+            self._update_engine_perf(last_arm_ms=self._elapsed_ms(started_at))
             return False, self.action_chain.last_error or "安全窗口不可用，无法武装"
 
         success, msg = self.state_machine.arm()
@@ -231,24 +313,29 @@ class MonitorEngine:
             self._add_event("arm", "系统已武装")
             self._start_detection()
 
+        self._update_engine_perf(last_arm_ms=self._elapsed_ms(started_at))
         return success, msg
 
     def disarm(self) -> tuple[bool, str]:
         """解除武装"""
+        started_at = time.perf_counter()
         success, msg = self.state_machine.disarm()
         if success:
             self._add_event("disarm", "系统已解除武装")
             self._stop_detection()
 
+        self._update_engine_perf(last_disarm_ms=self._elapsed_ms(started_at))
         return success, msg
 
     def recover(self) -> tuple[bool, str]:
         """手动恢复"""
+        started_at = time.perf_counter()
         success, msg = self.state_machine.recover()
         if success:
             self._add_event("recover", "用户手动恢复系统")
             self._start_detection()
 
+        self._update_engine_perf(last_recover_ms=self._elapsed_ms(started_at))
         return success, msg
 
     def _start_detection(self):
@@ -338,11 +425,17 @@ class MonitorEngine:
         logger.info("监控循环启动")
 
         while self._running:
+            loop_started_at = time.perf_counter()
             try:
                 state = self.state_machine.state
 
                 if state.arm_state != ArmState.ARMED:
                     time.sleep(0.1)
+                    self._update_monitor_perf(
+                        iterations=self._perf["monitor"]["iterations"] + 1,
+                        last_loop_ms=self._elapsed_ms(loop_started_at),
+                        last_state=state.arm_state.value,
+                    )
                     continue
 
                 if self.detector:
@@ -350,6 +443,11 @@ class MonitorEngine:
                     camera_status = self.detector.get_camera_status()
                     if not camera_status.get("runtime_available", False):
                         time.sleep(0.1)
+                        self._update_monitor_perf(
+                            iterations=self._perf["monitor"]["iterations"] + 1,
+                            last_loop_ms=self._elapsed_ms(loop_started_at),
+                            last_state=state.arm_state.value,
+                        )
                         continue
 
                     result = self.detector.latest_result
@@ -363,9 +461,19 @@ class MonitorEngine:
                                 self._add_event("reset", "人体离开，重置报警计数")
 
                 time.sleep(1.0 / 30)
+                self._update_monitor_perf(
+                    iterations=self._perf["monitor"]["iterations"] + 1,
+                    last_loop_ms=self._elapsed_ms(loop_started_at),
+                    last_state=state.arm_state.value,
+                )
 
             except Exception as e:
                 logger.error(f"监控循环异常: {e}")
+                self._update_monitor_perf(
+                    iterations=self._perf["monitor"]["iterations"] + 1,
+                    last_loop_ms=self._elapsed_ms(loop_started_at),
+                    last_state="exception",
+                )
                 time.sleep(1)
 
         logger.info("监控循环结束")
@@ -391,6 +499,7 @@ class MonitorEngine:
 
     def _execute_full_alert(self):
         """执行完全报警动作链"""
+        started_at = time.perf_counter()
         self.state_machine.trigger_full_alert()
         self._add_event("full_alert", "触发完全报警，执行安全动作")
 
@@ -408,6 +517,138 @@ class MonitorEngine:
             self._add_event("danger_lock", "动作失败，仍进入危险锁定状态")
             self._stop_detection()
 
+        self._update_engine_perf(last_full_alert_ms=self._elapsed_ms(started_at))
+
+    def test_action_chain(self, full_check: bool = False) -> dict:
+        """手动测试动作链，不改变武装/报警状态机"""
+        started_at = time.perf_counter()
+        state = self.state_machine.state
+
+        if full_check:
+            availability = self._refresh_component_availability(camera_source="manual_test_probe")
+            probe_mode = "full"
+        else:
+            action_chain_available = self.action_chain.is_available()
+            safe_window_available = (
+                self.action_chain.check_safe_window_available()
+                if action_chain_available
+                else False
+            )
+
+            if self.detector:
+                camera_status = {
+                    **self.detector.get_camera_status(),
+                    "source": "live_detector_quick_test",
+                }
+            else:
+                camera_status = dict(self._last_camera_probe_status)
+                camera_status["source"] = "cached_probe_quick_test"
+
+            availability = {
+                "camera_available": state.camera_available,
+                "camera_status": camera_status,
+                "action_chain_available": action_chain_available,
+                "safe_window_available": safe_window_available,
+            }
+            self.state_machine.update_availability(
+                action_chain=action_chain_available,
+                safe_window=safe_window_available,
+            )
+            probe_mode = "quick"
+
+        result = {
+            "success": False,
+            "message": "",
+            "safe_window_switched": False,
+            "safe_window_used": None,
+            "risk_apps_minimized": 0,
+            "errors": [],
+            "warnings": [],
+            "probe_mode": probe_mode,
+            "availability": availability,
+            "timings": {
+                "availability_refresh_ms": 0.0,
+                "switch_ms": 0.0,
+                "minimize_ms": 0.0,
+                "total_ms": 0.0,
+            },
+            "diagnostics": {
+                "switch": {},
+                "minimize": {},
+            },
+        }
+        result["timings"]["availability_refresh_ms"] = round((time.perf_counter() - started_at) * 1000, 2)
+
+        if not availability["action_chain_available"]:
+            result["message"] = "动作链路不可用，无法执行模拟切换"
+            result["errors"].append(result["message"])
+            result["timings"]["total_ms"] = round((time.perf_counter() - started_at) * 1000, 2)
+            result["perf"] = self.get_perf_snapshot()
+            self._update_engine_perf(last_action_test_ms=result["timings"]["total_ms"])
+            self._add_event("action_test_failure", result["message"], result)
+            logger.error(result["message"])
+            return result
+
+        success, msg, switch_details = self.action_chain.switch_to_safe_window_detailed()
+        result["diagnostics"]["switch"] = switch_details
+        result["timings"]["switch_ms"] = switch_details.get("total_ms", 0.0)
+        if success:
+            result["safe_window_switched"] = True
+            result["safe_window_used"] = switch_details.get("target_app")
+            if (
+                result["safe_window_used"] == self.action_chain.backup_safe_app
+                and self.action_chain.backup_safe_app != self.action_chain.primary_safe_app
+            ):
+                result["warnings"].append(f"主安全窗口不可用，测试时使用备选: {self.action_chain.backup_safe_app}")
+        else:
+            result["errors"].append(msg or "安全窗口切换失败")
+
+        minimized_count, minimize_details = self.action_chain.minimize_risk_apps_with_details()
+        result["risk_apps_minimized"] = minimized_count
+        result["diagnostics"]["minimize"] = minimize_details
+        result["timings"]["minimize_ms"] = minimize_details.get("elapsed_ms", 0.0)
+        result["success"] = result["safe_window_switched"]
+        result["timings"]["total_ms"] = round((time.perf_counter() - started_at) * 1000, 2)
+        result["perf"] = self.get_perf_snapshot()
+        self._update_engine_perf(last_action_test_ms=result["timings"]["total_ms"])
+
+        if result["success"]:
+            target_name = result["safe_window_used"] or self.action_chain.primary_safe_app
+            result["message"] = (
+                f"模拟切换完成：已切换到 {target_name}，"
+                f"最小化 {result['risk_apps_minimized']} 个风险窗口，"
+                f"切换耗时 {result['timings']['switch_ms']}ms，总耗时 {result['timings']['total_ms']}ms"
+            )
+            self._add_event(
+                "action_test",
+                result["message"],
+                {
+                    "safe_window_used": result["safe_window_used"],
+                    "risk_apps_minimized": result["risk_apps_minimized"],
+                    "warnings": result["warnings"],
+                    "probe_mode": result["probe_mode"],
+                    "timings": result["timings"],
+                },
+            )
+            logger.info(result["message"])
+        else:
+            result["message"] = result["errors"][0] if result["errors"] else "模拟切换失败"
+            self._add_event(
+                "action_test_failure",
+                result["message"],
+                {
+                    "errors": result["errors"],
+                    "risk_apps_minimized": result["risk_apps_minimized"],
+                    "probe_mode": result["probe_mode"],
+                    "timings": result["timings"],
+                },
+            )
+            logger.error(
+                f"{result['message']}，模式={result['probe_mode']}，切换耗时={result['timings']['switch_ms']}ms，总耗时={result['timings']['total_ms']}ms"
+            )
+
+        return result
+
     def get_config(self) -> dict:
         """获取当前配置快照"""
         with self._config_lock:
@@ -415,6 +656,7 @@ class MonitorEngine:
 
     def reload_config(self, new_config: dict) -> dict:
         """对运行中引擎应用新配置，并返回热加载结果"""
+        started_at = time.perf_counter()
         normalized_config = normalize_config(new_config)
 
         with self._config_lock:
@@ -423,7 +665,7 @@ class MonitorEngine:
             changed_keys = change_summary["changed_keys"]
 
             if not changed_keys:
-                return {
+                result = {
                     "success": True,
                     "message": "配置无变化",
                     "changed_keys": [],
@@ -433,7 +675,14 @@ class MonitorEngine:
                     "detector_restarted": False,
                     "service_restart_required": [],
                     "unknown": [],
+                    "timings": {
+                        "availability_refresh_ms": 0.0,
+                        "total_ms": self._elapsed_ms(started_at),
+                    },
+                    "perf": self.get_perf_snapshot(),
                 }
+                self._update_engine_perf(last_reload_config_ms=result["timings"]["total_ms"])
+                return result
 
             armed_state = self.state_machine.state.arm_state
             should_restart_detector = bool(change_summary["detector_restart_required"]) and armed_state == ArmState.ARMED
@@ -480,6 +729,11 @@ class MonitorEngine:
                 "service_restart_required": change_summary["service_restart_required"],
                 "unknown": change_summary["unknown"],
                 "availability": availability,
+                "timings": {
+                    "availability_refresh_ms": availability.get("timings", {}).get("total_ms", 0.0),
+                    "total_ms": self._elapsed_ms(started_at),
+                },
+                "perf": self.get_perf_snapshot(),
             }
 
             self._add_event(
@@ -489,13 +743,16 @@ class MonitorEngine:
                     "changed_keys": changed_keys,
                     "detector_restarted": detector_restarted,
                     "service_restart_required": change_summary["service_restart_required"],
+                    "timings": result["timings"],
                 },
             )
+            self._update_engine_perf(last_reload_config_ms=result["timings"]["total_ms"])
             logger.info(result["message"])
             return result
 
     def get_status(self) -> dict:
         """获取当前状态（用于 CLI/WebUI）"""
+        started_at = time.perf_counter()
         state = self.state_machine.state
         status = state.to_dict()
         action_chain_available = self.action_chain.is_available()
@@ -535,7 +792,15 @@ class MonitorEngine:
         status["primary_safe_app"] = self.action_chain.primary_safe_app
         status["backup_safe_app"] = self.action_chain.backup_safe_app
         status["risk_apps"] = self.action_chain.get_risk_apps()
+        status["perf"] = self.get_perf_snapshot()
+        status["timings"] = {
+            "total_ms": self._elapsed_ms(started_at),
+        }
 
+        self._update_engine_perf(
+            last_status_ms=status["timings"]["total_ms"],
+            last_status_timestamp=datetime.now().isoformat(),
+        )
         return status
 
     def doctor(self) -> dict:
@@ -543,6 +808,7 @@ class MonitorEngine:
         健康检查
         Phase 2 增强：更详细的组件状态和错误历史
         """
+        started_at = time.perf_counter()
         state = self.state_machine.state
         action_chain_available = self.action_chain.is_available()
         safe_window_available = (
@@ -580,7 +846,7 @@ class MonitorEngine:
                 },
                 "action_chain": {
                     "available": action_chain_available,
-                    "status": "✅ 可用" if action_chain_available else "❌ 不可用",
+                    "status": "✅ 可用" if action_chain_available else "❌ 可用",
                 },
             },
             "state": state.to_dict(),
@@ -619,6 +885,14 @@ class MonitorEngine:
         if action_health.get("recent_errors"):
             report["warnings"].append(f"动作链路最近发生 {len(action_health['recent_errors'])} 次错误")
 
+        report["perf"] = self.get_perf_snapshot()
+        report["timings"] = {
+            "total_ms": self._elapsed_ms(started_at),
+        }
+        self._update_engine_perf(
+            last_doctor_ms=report["timings"]["total_ms"],
+            last_doctor_timestamp=datetime.now().isoformat(),
+        )
         return report
 
     def shutdown(self):

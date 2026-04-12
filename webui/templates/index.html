@@ -361,6 +361,49 @@
             margin-top: 8px;
         }
 
+        .controls-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+            min-height: 24px;
+        }
+
+        .unsaved-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            font-size: 0.74rem;
+            line-height: 1;
+            letter-spacing: 0.04em;
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+
+        .unsaved-indicator::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(144, 160, 189, 0.45);
+            box-shadow: 0 0 0 4px rgba(144, 160, 189, 0.08);
+        }
+
+        .unsaved-indicator.active {
+            color: var(--accent-yellow);
+            border-color: rgba(255, 184, 77, 0.28);
+            background: rgba(255, 184, 77, 0.08);
+        }
+
+        .unsaved-indicator.active::before {
+            background: var(--accent-yellow);
+            box-shadow: 0 0 0 4px rgba(255, 184, 77, 0.12);
+        }
+
         .btn {
             display: inline-flex;
             align-items: center;
@@ -478,19 +521,92 @@
             border-radius: 999px;
         }
 
-        .event-item {
-            padding: 12px 14px;
-            border-left: 2px solid rgba(100, 163, 255, 0.4);
-            margin-bottom: 10px;
-            font-size: 0.8rem;
-            background: rgba(255, 255, 255, 0.028);
-            border-radius: 0 12px 12px 0;
-            line-height: 1.7;
+        .events-timeline {
+            display: grid;
+            gap: 10px;
+            align-content: start;
         }
 
-        .event-item .time { color: var(--text-secondary); font-size: 0.72rem; }
-        .event-item .type { color: var(--accent-blue); margin: 0 6px; }
-        .event-item .msg { color: var(--text-primary); }
+        .events-empty {
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 20px;
+        }
+
+        .event-item {
+            position: relative;
+            padding: 14px 16px 14px 18px;
+            border-left: 2px solid rgba(100, 163, 255, 0.4);
+            font-size: 0.8rem;
+            background: rgba(255, 255, 255, 0.028);
+            border-radius: 0 14px 14px 0;
+            line-height: 1.7;
+            overflow: hidden;
+            transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .event-item::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(100, 163, 255, 0.08), transparent 40%);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            pointer-events: none;
+        }
+
+        .event-item.is-new {
+            border-left-color: rgba(118, 240, 255, 0.58);
+            box-shadow: 0 0 0 1px rgba(118, 240, 255, 0.08);
+        }
+
+        .event-item.is-new::before {
+            opacity: 1;
+        }
+
+        .event-item:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .event-line {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .event-time {
+            color: var(--text-secondary);
+            font-size: 0.72rem;
+            flex: 0 0 auto;
+        }
+
+        .event-type {
+            color: var(--accent-blue);
+            flex: 0 0 auto;
+        }
+
+        .event-msg {
+            color: var(--text-primary);
+            flex: 1 1 220px;
+            min-width: 0;
+            word-break: break-word;
+        }
+
+        .event-meta {
+            margin-top: 8px;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            line-height: 1.6;
+            display: none;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .event-item.has-meta .event-meta {
+            display: block;
+        }
 
         .config-shell {
             display: grid;
@@ -616,6 +732,331 @@
             color: var(--text-muted);
             font-size: 0.72rem;
             line-height: 1.6;
+        }
+
+        .risk-apps-container,
+        .process-board {
+            display: grid;
+            gap: 10px;
+        }
+
+        .safe-window-input {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .safe-window-input input {
+            flex: 1;
+        }
+
+        .input-clear-btn {
+            min-height: 46px;
+            min-width: 46px;
+            padding: 8px 12px;
+        }
+
+        .selection-hints {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .selection-hint-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(118, 240, 255, 0.16);
+            background: rgba(118, 240, 255, 0.08);
+            color: var(--accent-cyan);
+            font-size: 0.72rem;
+            line-height: 1;
+        }
+
+        .process-board-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 0 2px;
+        }
+
+        .process-board-title {
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .process-board-status {
+            color: var(--text-muted);
+            font-size: 0.74rem;
+            text-align: right;
+        }
+
+        .process-board-status[data-tone="ok"] {
+            color: var(--accent-green);
+        }
+
+        .process-board-status[data-tone="warn"] {
+            color: var(--accent-yellow);
+        }
+
+        .process-board-status[data-tone="error"] {
+            color: var(--accent-red);
+        }
+
+        .risk-apps-search {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .risk-apps-search input {
+            flex: 1;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(9, 12, 18, 0.88);
+            color: var(--text-primary);
+            padding: 10px 14px;
+            font-family: inherit;
+            font-size: 0.88rem;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .risk-apps-search input:focus {
+            border-color: rgba(118, 240, 255, 0.4);
+            box-shadow: 0 0 0 3px rgba(118, 240, 255, 0.08);
+        }
+
+        .risk-apps-search .btn {
+            min-height: 40px;
+            min-width: 40px;
+            padding: 8px;
+        }
+
+        .risk-apps-selected {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(9, 12, 18, 0.88);
+            border: 1px solid rgba(255,255,255,0.08);
+            min-height: 48px;
+            flex-wrap: wrap;
+        }
+
+        .risk-apps-selected.is-empty {
+            border-style: dashed;
+        }
+
+        .risk-apps-selected-label {
+            color: var(--text-secondary);
+            font-size: 0.76rem;
+            white-space: nowrap;
+            padding-top: 4px;
+        }
+
+        .risk-apps-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            flex: 1;
+        }
+
+        .risk-app-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: rgba(255, 85, 119, 0.12);
+            border: 1px solid rgba(255, 85, 119, 0.28);
+            color: var(--accent-red);
+            font-size: 0.74rem;
+            line-height: 1;
+        }
+
+        .risk-app-tag .remove {
+            appearance: none;
+            border: none;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
+            padding: 0;
+            font-size: 0.9rem;
+            line-height: 1;
+            opacity: 0.72;
+        }
+
+        .risk-app-tag .remove:hover {
+            opacity: 1;
+        }
+
+        .risk-apps-list {
+            max-height: 260px;
+            overflow-y: auto;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(9, 12, 18, 0.72);
+            padding: 8px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .risk-apps-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .risk-apps-list::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.12);
+            border-radius: 999px;
+        }
+
+        .risk-apps-list-loading {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+        }
+
+        .risk-app-item {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.03);
+            transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+        }
+
+        .risk-app-item:hover {
+            transform: translateY(-1px);
+            border-color: rgba(118, 240, 255, 0.18);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .process-app-main {
+            display: grid;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .process-app-name-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .process-app-name {
+            color: var(--text-primary);
+            font-size: 0.88rem;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .process-app-meta {
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            line-height: 1.6;
+        }
+
+        .process-state-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            line-height: 1;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.04);
+        }
+
+        .process-state-badge.primary {
+            color: var(--accent-green);
+            border-color: rgba(44,255,152,0.24);
+            background: rgba(44,255,152,0.08);
+        }
+
+        .process-state-badge.backup {
+            color: var(--accent-blue);
+            border-color: rgba(100,163,255,0.24);
+            background: rgba(100,163,255,0.08);
+        }
+
+        .process-state-badge.risk {
+            color: var(--accent-red);
+            border-color: rgba(255,85,119,0.24);
+            background: rgba(255,85,119,0.08);
+        }
+
+        .process-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .process-action-btn {
+            appearance: none;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(14, 18, 26, 0.9);
+            color: var(--text-secondary);
+            border-radius: 999px;
+            min-height: 34px;
+            padding: 6px 12px;
+            font-family: inherit;
+            font-size: 0.74rem;
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+        }
+
+        .process-action-btn:hover {
+            transform: translateY(-1px);
+            color: var(--text-primary);
+        }
+
+        .process-action-btn.active-primary {
+            color: var(--accent-green);
+            border-color: rgba(44,255,152,0.32);
+            background: rgba(44,255,152,0.08);
+        }
+
+        .process-action-btn.active-backup {
+            color: var(--accent-blue);
+            border-color: rgba(100,163,255,0.32);
+            background: rgba(100,163,255,0.08);
+        }
+
+        .process-action-btn.active-risk {
+            color: var(--accent-red);
+            border-color: rgba(255,85,119,0.32);
+            background: rgba(255,85,119,0.08);
+        }
+
+        .risk-app-item.empty {
+            padding: 18px 16px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            display: block;
+        }
+
+        @media (max-width: 900px) {
+            .risk-app-item {
+                grid-template-columns: 1fr;
+            }
+
+            .process-actions {
+                justify-content: flex-start;
+            }
         }
 
         .toggle-row {
@@ -864,6 +1305,10 @@
                                 <button class="btn arm" id="armBtn" onclick="armSystem()">🔒 武装</button>
                                 <button class="btn disarm" id="disarmBtn" onclick="disarmSystem()">🔓 解除</button>
                                 <button class="btn recover" id="recoverBtn" onclick="recoverSystem()">🔄 恢复</button>
+                                <button class="btn secondary" id="testActionBtn" onclick="testActionChain()">🧪 测试切换</button>
+                            </div>
+                            <div class="controls-meta">
+                                <span class="unsaved-indicator" id="unsavedChangesIndicator">表单已同步到当前运行配置</span>
                             </div>
                         </div>
                     </div>
@@ -938,18 +1383,52 @@
                                 <div class="config-grid">
                                     <div class="field">
                                         <label for="safePrimary">主安全窗口</label>
-                                        <input id="safePrimary" name="safePrimary" type="text" placeholder="notepad.exe">
-                                        <small>报警优先切换目标，例如 notepad.exe。</small>
+                                        <div class="safe-window-input">
+                                            <input id="safePrimary" name="safePrimary" type="text" placeholder="notepad.exe" list="processOptions" oninput="renderProcessList()">
+                                            <button type="button" class="btn secondary input-clear-btn" onclick="clearProcessTarget('safePrimary')" title="清空主安全窗口">✕</button>
+                                        </div>
+                                        <div class="selection-hints" id="safePrimaryHints">
+                                            <span class="selection-hint-tag">可手动输入</span>
+                                            <span class="selection-hint-tag">可从下方实时进程一键选择</span>
+                                        </div>
+                                        <small>报警优先切换目标，例如 notepad.exe。支持手动输入或从实时进程列表直接指定。</small>
                                     </div>
                                     <div class="field">
                                         <label for="safeBackup">备选安全窗口</label>
-                                        <input id="safeBackup" name="safeBackup" type="text" placeholder="calc.exe">
-                                        <small>主目标不可用时的后备安全态窗口。</small>
+                                        <div class="safe-window-input">
+                                            <input id="safeBackup" name="safeBackup" type="text" placeholder="calc.exe" list="processOptions" oninput="renderProcessList()">
+                                            <button type="button" class="btn secondary input-clear-btn" onclick="clearProcessTarget('safeBackup')" title="清空备选安全窗口">✕</button>
+                                        </div>
+                                        <div class="selection-hints" id="safeBackupHints">
+                                            <span class="selection-hint-tag">故障兜底</span>
+                                            <span class="selection-hint-tag">与主窗口可不同</span>
+                                        </div>
+                                        <small>主目标不可用时的后备安全态窗口，同样支持手动输入或从实时进程列表选择。</small>
                                     </div>
                                     <div class="field-wide">
-                                        <label for="riskApps">风险程序列表</label>
-                                        <textarea id="riskApps" name="riskApps" placeholder="chrome.exe&#10;code.exe&#10;WeChat.exe"></textarea>
-                                        <small>一行一个进程名。保存后会立即更新动作链路最小化目标。</small>
+                                        <label>实时进程列表</label>
+                                        <div class="process-board">
+                                            <div class="risk-apps-search">
+                                                <input id="processSearch" type="text" placeholder="搜索进程名称..." oninput="filterProcesses()">
+                                                <button type="button" class="btn secondary" onclick="refreshProcesses()" id="refreshProcessesBtn" title="刷新进程列表">🔄</button>
+                                            </div>
+                                            <div class="process-board-meta">
+                                                <div class="process-board-title">运行中进程</div>
+                                                <div class="process-board-status" id="processBoardStatus" data-tone="warn">等待首次载入...</div>
+                                            </div>
+                                            <div class="risk-apps-selected is-empty" id="riskAppsSelected">
+                                                <div class="risk-apps-selected-label">已选风险进程：</div>
+                                                <div class="risk-apps-tags" id="riskAppsTags">
+                                                    <span class="selection-hint-tag">暂无已选风险进程</span>
+                                                </div>
+                                            </div>
+                                            <div class="risk-apps-list" id="riskAppsList">
+                                                <div class="risk-apps-list-loading">加载中...</div>
+                                            </div>
+                                            <datalist id="processOptions"></datalist>
+                                        </div>
+                                        <small>进程列表会实时刷新。点击下方进程可设为主/备安全窗口，或加入风险程序；保存后会持久化到配置文件。</small>
+                                        <input type="hidden" id="riskApps" name="riskApps">
                                     </div>
                                 </div>
                             </section>
@@ -1143,6 +1622,12 @@
         let statusInterval = null;
         let eventsInterval = null;
         let currentVideoMode = 'frame';
+        let allProcesses = [];
+        let selectedRiskApps = [];
+        let processesInterval = null;
+        let processesLoaded = false;
+        let isPopulatingForm = false;
+        let lastRenderedEventKeys = [];
 
         document.addEventListener('DOMContentLoaded', () => {
             gsap.from('header', { opacity: 0, y: -18, duration: 0.6, ease: 'power2.out' });
@@ -1155,8 +1640,11 @@
                 delay: 0.18
             });
 
+            bindConfigDirtyTracking();
+            refreshUnsavedIndicator();
             startPolling();
             loadConfig();
+            loadProcesses();
         });
 
         function startPolling() {
@@ -1164,6 +1652,7 @@
             updateEvents();
             statusInterval = setInterval(updateStatus, 1000);
             eventsInterval = setInterval(updateEvents, 3000);
+            processesInterval = setInterval(loadProcesses, 5000);
         }
 
         async function updateStatus() {
@@ -1209,6 +1698,7 @@
         }
 
         function populateConfigForm(config) {
+            isPopulatingForm = true;
             const camera = config.camera || {};
             const detection = config.detection || {};
             const riskZone = detection.risk_zone || {};
@@ -1218,7 +1708,8 @@
 
             setValue('safePrimary', safeWindow.primary ?? '');
             setValue('safeBackup', safeWindow.backup ?? '');
-            setValue('riskApps', (config.risk_apps || []).join('\n'));
+            selectedRiskApps = dedupeProcessNames(config.risk_apps || []);
+            syncRiskAppsField();
 
             setValue('preAlertFrames', detection.pre_alert_frames ?? 10);
             setValue('fullAlertFrames', detection.full_alert_frames ?? 30);
@@ -1238,11 +1729,228 @@
             setValue('webuiHost', webui.host ?? '127.0.0.1');
             setValue('webuiPort', webui.port ?? 8765);
             document.getElementById('webuiDebug').checked = Boolean(webui.debug);
+            syncProcessOptions();
+            renderProcessList();
+            isPopulatingForm = false;
+            refreshUnsavedIndicator();
         }
 
         function setValue(id, value) {
             const el = document.getElementById(id);
             if (el) el.value = value;
+        }
+
+        function sortObjectDeep(value) {
+            if (Array.isArray(value)) {
+                return value.map(sortObjectDeep);
+            }
+            if (value && typeof value === 'object') {
+                return Object.keys(value)
+                    .sort()
+                    .reduce((acc, key) => {
+                        acc[key] = sortObjectDeep(value[key]);
+                        return acc;
+                    }, {});
+            }
+            return value;
+        }
+
+        function getComparableConfig(config) {
+            if (!config) return null;
+            return JSON.stringify(sortObjectDeep(config));
+        }
+
+        function hasUnsavedChanges() {
+            if (!currentConfig) return false;
+            return getComparableConfig(collectConfigFromForm()) !== getComparableConfig(currentConfig);
+        }
+
+        function refreshUnsavedIndicator() {
+            const indicator = document.getElementById('unsavedChangesIndicator');
+            if (!indicator) return;
+            const dirty = hasUnsavedChanges();
+            indicator.classList.toggle('active', dirty);
+            indicator.textContent = dirty
+                ? '存在未保存改动，顶部操作将使用当前运行配置'
+                : '表单已同步到当前运行配置';
+        }
+
+        function bindConfigDirtyTracking() {
+            const form = document.getElementById('configForm');
+            if (!form) return;
+            const handler = () => {
+                if (!isPopulatingForm) {
+                    refreshUnsavedIndicator();
+                }
+            };
+            form.addEventListener('input', handler);
+            form.addEventListener('change', handler);
+        }
+
+        function confirmUnsavedChanges(actionLabel) {
+            if (!hasUnsavedChanges()) {
+                return true;
+            }
+            return window.confirm(`当前有未保存的配置改动。\n${actionLabel} 将使用当前运行中的已保存配置，而不是表单草稿。\n是否继续？`);
+        }
+
+        function normalizeProcessName(value) {
+            return String(value ?? '').trim();
+        }
+
+        function isSameProcessName(left, right) {
+            const normalizedLeft = normalizeProcessName(left).toLowerCase();
+            const normalizedRight = normalizeProcessName(right).toLowerCase();
+            return normalizedLeft && normalizedLeft === normalizedRight;
+        }
+
+        function dedupeProcessNames(items) {
+            const results = [];
+            const seen = new Set();
+            (items || []).forEach((item) => {
+                const normalized = normalizeProcessName(item);
+                if (!normalized) return;
+                const key = normalized.toLowerCase();
+                if (seen.has(key)) return;
+                seen.add(key);
+                results.push(normalized);
+            });
+            return results;
+        }
+
+        function clearProcessTarget(targetId) {
+            setValue(targetId, '');
+            renderProcessList();
+            refreshUnsavedIndicator();
+        }
+
+        function setSafeWindowTarget(targetId, processName) {
+            setValue(targetId, normalizeProcessName(processName));
+            renderProcessList();
+            refreshUnsavedIndicator();
+        }
+
+        function isRiskAppSelected(processName) {
+            return selectedRiskApps.some((item) => isSameProcessName(item, processName));
+        }
+
+        function toggleRiskApp(processName) {
+            const normalized = normalizeProcessName(processName);
+            if (!normalized) return;
+
+            if (isRiskAppSelected(normalized)) {
+                selectedRiskApps = selectedRiskApps.filter((item) => !isSameProcessName(item, normalized));
+            } else {
+                selectedRiskApps = [...selectedRiskApps, normalized];
+            }
+
+            syncRiskAppsField();
+        }
+
+        function removeRiskApp(processName) {
+            selectedRiskApps = selectedRiskApps.filter((item) => !isSameProcessName(item, processName));
+            syncRiskAppsField();
+        }
+
+        function syncRiskAppsField() {
+            selectedRiskApps = dedupeProcessNames(selectedRiskApps);
+            setValue('riskApps', selectedRiskApps.join('\n'));
+            renderSelectedRiskApps();
+            if (!isPopulatingForm) {
+                refreshUnsavedIndicator();
+            }
+        }
+
+        function renderSelectedRiskApps() {
+            const holder = document.getElementById('riskAppsSelected');
+            const tags = document.getElementById('riskAppsTags');
+            if (!holder || !tags) return;
+
+            if (!selectedRiskApps.length) {
+                holder.classList.add('is-empty');
+                tags.innerHTML = '<span class="selection-hint-tag">暂无已选风险进程</span>';
+                return;
+            }
+
+            holder.classList.remove('is-empty');
+            tags.innerHTML = selectedRiskApps.map((name) => `
+                <span class="risk-app-tag">
+                    <span>${escapeHtml(name)}</span>
+                    <button type="button" class="remove" data-process-name="${escapeHtml(name)}" onclick="removeRiskApp(this.dataset.processName)" title="移除 ${escapeHtml(name)}">✕</button>
+                </span>
+            `).join('');
+        }
+
+        function syncProcessOptions() {
+            const datalist = document.getElementById('processOptions');
+            if (!datalist) return;
+            datalist.innerHTML = allProcesses
+                .map((proc) => `<option value="${escapeHtml(proc.name)}"></option>`)
+                .join('');
+        }
+
+        function setProcessBoardStatus(message, tone = 'warn') {
+            const el = document.getElementById('processBoardStatus');
+            if (!el) return;
+            el.textContent = message;
+            el.dataset.tone = tone;
+        }
+
+        function formatProcessRefreshTime() {
+            return new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        }
+
+        function renderProcessList() {
+            const container = document.getElementById('riskAppsList');
+            if (!container) return;
+
+            if (!processesLoaded && !allProcesses.length) {
+                container.innerHTML = '<div class="risk-apps-list-loading">加载中...</div>';
+                return;
+            }
+
+            const keyword = normalizeProcessName(document.getElementById('processSearch')?.value || '').toLowerCase();
+            const filtered = keyword
+                ? allProcesses.filter((proc) => proc.name.toLowerCase().includes(keyword))
+                : allProcesses;
+
+            if (!filtered.length) {
+                container.innerHTML = `<div class="risk-app-item empty">${allProcesses.length ? `未找到匹配 “${escapeHtml(keyword)}” 的进程` : '当前未检索到运行中的进程'}</div>`;
+                return;
+            }
+
+            const primary = normalizeProcessName(getStringValue('safePrimary'));
+            const backup = normalizeProcessName(getStringValue('safeBackup'));
+
+            container.innerHTML = filtered.map((proc) => {
+                const processName = normalizeProcessName(proc.name);
+                const isPrimary = isSameProcessName(primary, processName);
+                const isBackup = isSameProcessName(backup, processName);
+                const isRisk = isRiskAppSelected(processName);
+                const badges = [
+                    isPrimary ? '<span class="process-state-badge primary">主安全窗口</span>' : '',
+                    isBackup ? '<span class="process-state-badge backup">备选安全窗口</span>' : '',
+                    isRisk ? '<span class="process-state-badge risk">风险程序</span>' : ''
+                ].filter(Boolean).join('');
+                const escapedProcessName = escapeHtml(processName);
+
+                return `
+                    <div class="risk-app-item">
+                        <div class="process-app-main">
+                            <div class="process-app-name-row">
+                                <span class="process-app-name">${escapedProcessName}</span>
+                                ${badges || '<span class="selection-hint-tag">运行中</span>'}
+                            </div>
+                            <div class="process-app-meta">${proc.pid ? `PID ${escapeHtml(proc.pid)}` : 'PID 未知'} · 可直接设为主/备安全窗口或切换风险程序</div>
+                        </div>
+                        <div class="process-actions">
+                            <button type="button" class="process-action-btn ${isPrimary ? 'active-primary' : ''}" data-process-name="${escapedProcessName}" onclick="setSafeWindowTarget('safePrimary', this.dataset.processName)">主安全</button>
+                            <button type="button" class="process-action-btn ${isBackup ? 'active-backup' : ''}" data-process-name="${escapedProcessName}" onclick="setSafeWindowTarget('safeBackup', this.dataset.processName)">备选</button>
+                            <button type="button" class="process-action-btn ${isRisk ? 'active-risk' : ''}" data-process-name="${escapedProcessName}" onclick="toggleRiskApp(this.dataset.processName)">${isRisk ? '移出风险' : '加入风险'}</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         function collectConfigFromForm() {
@@ -1251,7 +1959,7 @@
                     primary: getStringValue('safePrimary'),
                     backup: getStringValue('safeBackup')
                 },
-                risk_apps: parseRiskApps(getStringValue('riskApps')),
+                risk_apps: dedupeProcessNames(selectedRiskApps),
                 detection: {
                     pre_alert_frames: getIntValue('preAlertFrames'),
                     full_alert_frames: getIntValue('fullAlertFrames'),
@@ -1300,6 +2008,61 @@
                 .filter(Boolean);
         }
 
+        function filterProcesses() {
+            renderProcessList();
+        }
+
+        function refreshProcesses() {
+            loadProcesses(true);
+        }
+
+        async function loadProcesses(showToast = false) {
+            const refreshBtn = document.getElementById('refreshProcessesBtn');
+            if (refreshBtn) refreshBtn.disabled = true;
+
+            try {
+                const resp = await fetch('/api/processes');
+                const data = await resp.json();
+                if (!resp.ok) {
+                    throw new Error(data.error || '进程列表读取失败');
+                }
+
+                const seen = new Set();
+                allProcesses = (data.processes || [])
+                    .map((proc) => ({
+                        name: normalizeProcessName(proc.name),
+                        pid: proc.pid ?? null,
+                    }))
+                    .filter((proc) => {
+                        if (!proc.name) return false;
+                        const key = proc.name.toLowerCase();
+                        if (seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    })
+                    .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { sensitivity: 'base' }));
+
+                processesLoaded = true;
+                syncProcessOptions();
+                renderProcessList();
+                setProcessBoardStatus(`已载入 ${allProcesses.length} 个进程 · ${formatProcessRefreshTime()}`, 'ok');
+
+                if (showToast) {
+                    showNotification(`进程列表已刷新，共 ${allProcesses.length} 项`, 'info');
+                }
+            } catch (e) {
+                processesLoaded = true;
+                console.error('进程列表更新失败:', e);
+                renderProcessList();
+                setProcessBoardStatus('进程列表载入失败，请稍后重试', 'error');
+                if (showToast) {
+                    showNotification('进程列表载入失败: ' + e.message, 'error');
+                }
+            } finally {
+                if (refreshBtn) refreshBtn.disabled = false;
+            }
+        }
+
         async function saveConfig() {
             const saveBtn = document.getElementById('saveConfigBtn');
             const reloadBtn = document.getElementById('reloadDiskBtn');
@@ -1323,6 +2086,7 @@
                 populateConfigForm(currentConfig);
                 renderConfigResult(data);
                 updateHeroFromConfig(currentConfig);
+                refreshUnsavedIndicator();
                 showNotification(buildSaveNotification(data), data.service_restart_required?.length ? 'warning' : 'success');
                 updateStatus();
                 updateEvents();
@@ -1354,6 +2118,7 @@
                 document.getElementById('configPath').textContent = data.path || '-';
                 document.getElementById('heroConfigPath').textContent = data.path || '-';
                 updateHeroFromConfig(currentConfig);
+                refreshUnsavedIndicator();
                 showNotification(buildSaveNotification(data, '已从磁盘重载配置'), data.service_restart_required?.length ? 'warning' : 'info');
                 updateStatus();
                 updateEvents();
@@ -1415,6 +2180,7 @@
             document.getElementById('armBtn').disabled = armState === 'armed';
             document.getElementById('disarmBtn').disabled = armState === 'unarmed';
             document.getElementById('recoverBtn').disabled = armState !== 'danger_locked';
+            document.getElementById('testActionBtn').disabled = !data.action_chain_available;
 
             const recIndicator = document.getElementById('recIndicator');
             recIndicator.style.display = armState === 'armed' ? 'flex' : 'none';
@@ -1455,29 +2221,112 @@
             statusCard.className = 'card' + (armState === 'danger_locked' ? ' danger' : armState === 'armed' && !data.is_protecting ? ' warning' : '');
         }
 
+        function getEventKey(event) {
+            return [
+                event.timestamp || '',
+                event.event_type || '',
+                event.message || ''
+            ].join('|');
+        }
+
+        function formatEventMeta(event) {
+            if (!event?.data || typeof event.data !== 'object' || !Object.keys(event.data).length) {
+                return '';
+            }
+            try {
+                return JSON.stringify(event.data, null, 2);
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function renderEventCard(event, isNew = false) {
+            const wrapper = document.createElement('div');
+            const time = event.timestamp?.substring(11, 19) || '';
+            const type = event.event_type || '';
+            const message = event.message || '';
+            const meta = formatEventMeta(event);
+            wrapper.className = `event-item${isNew ? ' is-new' : ''}${meta ? ' has-meta' : ''}`;
+            wrapper.dataset.eventKey = getEventKey(event);
+            wrapper.innerHTML = `
+                <div class="event-line">
+                    <span class="event-time">${escapeHtml(time)}</span>
+                    <span class="event-type">[${escapeHtml(type)}]</span>
+                    <span class="event-msg">${escapeHtml(message)}</span>
+                </div>
+                <div class="event-meta">${escapeHtml(meta)}</div>
+            `;
+            return wrapper;
+        }
+
         function renderEvents(events) {
             const container = document.getElementById('eventsList');
+            if (!container) return;
+
             if (!events.length) {
-                container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">暂无事件记录</div>';
+                lastRenderedEventKeys = [];
+                container.innerHTML = '<div class="events-empty">暂无事件记录</div>';
                 return;
             }
 
-            container.innerHTML = events.map(event => {
-                const time = event.timestamp?.substring(11, 19) || '';
-                return `<div class="event-item">
-                    <span class="time">${escapeHtml(time)}</span>
-                    <span class="type">[${escapeHtml(event.event_type || '')}]</span>
-                    <span class="msg">${escapeHtml(event.message || '')}</span>
-                </div>`;
-            }).join('');
+            const nextKeys = events.map(getEventKey);
+            const isSameTimeline =
+                nextKeys.length === lastRenderedEventKeys.length
+                && nextKeys.every((key, index) => key === lastRenderedEventKeys[index]);
 
-            gsap.from('.event-item', {
-                opacity: 0,
-                x: -18,
-                duration: 0.28,
-                stagger: 0.045,
-                ease: 'power2.out'
+            if (isSameTimeline) {
+                return;
+            }
+
+            const previousScrollTop = container.scrollTop;
+            const wasNearTop = previousScrollTop <= 12;
+            const timeline = document.createElement('div');
+            timeline.className = 'events-timeline';
+
+            const existingNodes = new Map(
+                Array.from(container.querySelectorAll('.event-item'))
+                    .map((node) => [node.dataset.eventKey, node])
+            );
+
+            const newNodes = [];
+            events.forEach((event) => {
+                const key = getEventKey(event);
+                const existingNode = existingNodes.get(key);
+                if (existingNode) {
+                    existingNode.classList.remove('is-new');
+                    timeline.appendChild(existingNode);
+                    return;
+                }
+                const card = renderEventCard(event, true);
+                newNodes.push(card);
+                timeline.appendChild(card);
             });
+
+            container.replaceChildren(timeline);
+            lastRenderedEventKeys = nextKeys;
+
+            if (wasNearTop) {
+                container.scrollTop = 0;
+            } else {
+                container.scrollTop = previousScrollTop;
+            }
+
+            if (newNodes.length) {
+                gsap.fromTo(newNodes,
+                    { opacity: 0, x: -12, y: 6 },
+                    {
+                        opacity: 1,
+                        x: 0,
+                        y: 0,
+                        duration: 0.28,
+                        stagger: 0.05,
+                        ease: 'power2.out',
+                        onComplete: () => {
+                            newNodes.forEach((node) => node.classList.remove('is-new'));
+                        }
+                    }
+                );
+            }
         }
 
         function updateHeroFromConfig(config) {
@@ -1488,6 +2337,9 @@
         }
 
         async function armSystem() {
+            if (!confirmUnsavedChanges('武装')) {
+                return;
+            }
             showArmingAnimation();
             try {
                 const resp = await fetch('/api/arm', { method: 'POST' });
@@ -1506,6 +2358,9 @@
         }
 
         async function disarmSystem() {
+            if (!confirmUnsavedChanges('解除武装')) {
+                return;
+            }
             try {
                 const resp = await fetch('/api/disarm', { method: 'POST' });
                 const data = await resp.json();
@@ -1521,6 +2376,9 @@
         }
 
         async function recoverSystem() {
+            if (!confirmUnsavedChanges('恢复')) {
+                return;
+            }
             try {
                 const resp = await fetch('/api/recover', { method: 'POST' });
                 const data = await resp.json();
@@ -1532,6 +2390,47 @@
                 }
             } catch (e) {
                 showNotification('请求失败: ' + e.message, 'error');
+            }
+        }
+
+        function buildActionTestNotification(data) {
+            const lines = [data.message || '模拟切换完成'];
+            if (data.safe_window_used) {
+                lines.push(`安全窗口: ${data.safe_window_used}`);
+            }
+            lines.push(`最小化风险窗口: ${data.risk_apps_minimized ?? 0}`);
+            if (data.warnings?.length) {
+                lines.push(`警告: ${data.warnings.join('；')}`);
+            }
+            return lines.join('\n');
+        }
+
+        async function testActionChain() {
+            if (!confirmUnsavedChanges('测试切换')) {
+                return;
+            }
+            const testBtn = document.getElementById('testActionBtn');
+            if (!testBtn) return;
+            testBtn.disabled = true;
+
+            try {
+                const resp = await fetch('/api/action-chain/test', { method: 'POST' });
+                const data = await resp.json();
+                if (!resp.ok || !data.success) {
+                    showNotification(data.message || data.error || '模拟切换失败', 'error');
+                    return;
+                }
+
+                showNotification(
+                    buildActionTestNotification(data),
+                    data.warnings?.length ? 'warning' : 'success'
+                );
+                updateStatus();
+                updateEvents();
+            } catch (e) {
+                showNotification('模拟切换失败: ' + e.message, 'error');
+            } finally {
+                testBtn.disabled = false;
             }
         }
 

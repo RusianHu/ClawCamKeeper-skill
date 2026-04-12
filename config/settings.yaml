@@ -24,7 +24,7 @@ risk_apps:
 - QQ.exe
 safe_window:
   backup: calc.exe
-  primary: notepad.exe
+  primary: Weixin.exe
 webui:
   debug: false
   host: 127.0.0.1
