@@ -41,8 +41,10 @@
 - **Core**：本地常驻监控核心，负责状态机、双阶段判断、报警动作链
 - **CLI**：主要控制入口，便于自动化调用、调试、自检、状态查询
 - **WebUI**：负责状态展示、配置编辑、配置文件落盘、分类热加载、校准、轻量调试
-- **openclaw**：作为外部控制与消息转发层，不替代本地主链路
+- **openclaw / ACP**：作为外部控制、会话承载与消息转发层，不替代本地执行主链路
 - **约束**：CLI 负责控制与查询，持续监控由 Core 常驻承担
+- **约束**：openclaw / ACP 默认通过 CLI 的机器可读接口调用，不直接操作 Core 内部对象
+- **约束**：远程控制不依赖打开 WebUI 浏览器链路
 - **约束**：关键状态与检查命令应支持机器可读输出
 
 ## CLI 建议范围
@@ -180,22 +182,117 @@
 # Phase 3｜openclaw 接入
 
 ## 目标
-把本地防护工具变成真正的 openclaw skill，而不让远程控制破坏本地优先原则。
+把本地防护工具变成真正的 openclaw skill，并通过 ACP 建立稳定的远程控制入口；远程负责发起控制意图，本地仍是实际检测、触发与执行的第一责任链路。
+
+## 核心原则
+- openclaw / ACP 是外部控制层，不是本地 Core 的替代执行器
+- 远程调用默认经由 CLI 的 JSON 模式完成，不直接操作 Core 内部对象
+- WebUI 面向人工可视操作；CLI 才是远程自动化的稳定边界
+- ACP 负责会话、消息、调用编排与结果转发，不负责替代本地动作链
+- 所有自动化结果必须保留机器可读字段，不能退化为仅人类可读文本
+- 任何远程能力都不得破坏“本地优先、危险锁定需手动恢复”的总原则
+- openclaw / ACP 侧故障默认只影响远程入口，不影响本地 Core 常驻能力
+
+## 首批远程能力面
+- status
+- doctor
+- arm
+- disarm
+- recover
+- config-show
+- set-safe-window（主 / 备安全窗口）
+- events（只读、限量）
 
 ## TODO
-- [ ] 接入 openclaw skill 结构
-- [ ] 接入消息转发通道
-- [ ] 设计适合自动化调用的 CLI 命令面
-- [ ] 支持远程武装 / 解除武装
-- [ ] 支持远程查看当前状态
-- [ ] 支持远程修改目标安全窗口
-- [ ] 支持状态查询与健康检查的机器可读输出
-- [ ] 明确本地优先、远程实时生效的控制规则
-- [ ] 保证危险锁定期间远程配置变更行为可预期
+- [ ] 固化 openclaw skill 结构、工作目录与配置注入方式
+- [ ] 打通 ACP → 本地 CLI(JSON) → Core 的最小调用链
+- [ ] 固化首批远程命令白名单：status / doctor / arm / disarm / recover / config-show / set-safe-window / events
+- [ ] 统一机器可读返回结构：ok / message / data / timings / source / state_snapshot
+- [ ] 统一错误语义：参数非法 / 当前状态不允许 / 本地服务未运行 / CLI 调用失败 / 动作失败 / 调用超时
+- [ ] 接入消息转发通道（成功 / 失败 / 锁定 / 需人工恢复）
+- [ ] 约束 openclaw / ACP 不直接调用 WebUI 页面链路，不直接操作 Core 内部对象
+
+## 执行拆解
+
+### 3A｜控制边界与命令面定稿
+- [ ] 为每个远程动作建立 CLI 命令映射表
+- [ ] 明确所有远程动作默认使用 `--json`
+- [ ] 明确每个动作的输入参数面：`safe_window.primary` / `safe_window.backup` / `limit` / `full_check`
+- [ ] 明确每个动作的最小成功字段与失败字段
+- [ ] 明确 openclaw session / session-label 只承担会话隔离，不承载业务状态
+
+### 3B｜最小调用链打通
+- [ ] 可远程调用 status
+- [ ] 可远程调用 doctor
+- [ ] 可远程调用 arm / disarm / recover
+- [ ] 可远程调用 config-show
+- [ ] 可远程调用 set-safe-window，并验证配置已落盘且本地即时生效
+- [ ] 可远程调用 events（只读）
+- [ ] 调用结果保留 CLI 与服务端 timings 字段
+
+### 3C｜锁定期与状态规则收敛
+- [ ] 形成三态下的远程动作允许矩阵：未武装 / 已武装 / 危险锁定
+- [ ] 明确 danger_locked 期间允许：status / doctor / events / config-show
+- [ ] 明确 danger_locked 期间谨慎允许：修改主 / 备安全窗口
+- [ ] 明确 danger_locked 期间默认拒绝：风险程序批量改写 / 检测参数改写 / 隐式恢复类操作
+- [ ] 恢复必须显式调用 recover，不允许通过 config-set 间接解锁
+- [ ] 远程配置变更不得破坏本地优先与手动恢复语义
+
+### 3D｜消息转发与事件语义
+- [ ] 定义需转发的关键事件：arm 成功 / disarm 成功 / 进入危险锁定 / 动作链失败 / 需人工恢复
+- [ ] 明确哪些事件即时推送，哪些事件仅供查询
+- [ ] 为转发消息保留状态摘要与关键 timings
+- [ ] 为重复告警设计节流 / 去重规则，避免刷屏
+- [ ] 保证消息转发失败不影响本地动作链执行
+
+### 3E｜调试与联调
+- [ ] 先用本地 CLI(JSON) 完成单机调试，再接 ACP
+- [ ] 用 status / doctor / action-test 建立联调前置检查清单
+- [ ] 分开验证 quick 与 full 两条检查路径
+- [ ] 验证本地服务未运行、Gateway 不可达、ACP 调用超时、CLI 非零退出码的处理
+- [ ] 保留最小可复现日志：请求参数、CLI stdout/stderr、退出码、关键 timings
+- [ ] 为远程修改安全窗口后即时生效建立回归检查步骤
+
+### 3F｜验收、回退与上线约束
+- [ ] 提供 Phase 3 验收脚本或手工清单
+- [ ] 提供“关闭 openclaw 接入后仍可纯本地运行”的回退路径
+- [ ] 约束 openclaw / ACP 侧故障不得阻塞本地 Core 常驻
+- [ ] 明确 Gateway / ACP 故障时的降级提示与人工操作建议
+- [ ] 把 Phase 3 完成条件映射到后续 Phase 4 的事件与观察能力
+
+## 远程动作映射草案
+- `status` → `clawcamkeeper status --json`
+- `doctor` → `clawcamkeeper doctor --json`
+- `arm` → `clawcamkeeper arm --json`
+- `disarm` → `clawcamkeeper disarm --json`
+- `recover` → `clawcamkeeper recover --json`
+- `config-show` → `clawcamkeeper config-show --json`
+- `set-safe-window` → `clawcamkeeper config-set --safe-window <primary> --backup-window <backup> --json`
+- `events` → `clawcamkeeper events --limit <n> --json`
+- 联调动作测试 → `clawcamkeeper action-test --json [--full-check]`
+
+## 危险锁定期规则
+- 允许：status / doctor / events / config-show
+- 谨慎允许：修改主 / 备安全窗口
+- 默认拒绝：大范围风险程序改写、检测参数改写、任何可能改变锁定语义的远程操作
+- 恢复必须显式调用 recover，不允许通过配置变更隐式恢复
+- disarm 是否允许在危险锁定期间执行，必须在接入前明确并固定为单一语义
+
+## 联调前置检查
+- [ ] 本地 `run` 服务已启动且稳定运行
+- [ ] `status --json` 返回结构稳定
+- [ ] `doctor --json` 可区分摄像头 / 安全窗口 / 动作链状态
+- [ ] `action-test --json` 的 quick 模式可快速确认切窗链路
+- [ ] `action-test --json --full-check` 可用于完整故障诊断
+- [ ] 配置文件路径、日志路径、openclaw skill 工作目录已统一
 
 ## 验收
-- [ ] openclaw 可作为外部控制入口使用
+- [ ] openclaw 可通过 ACP 作为外部控制入口使用
+- [ ] ACP 调用链以 CLI(JSON) 为唯一稳定自动化边界
+- [ ] 远程 status / doctor / arm / disarm / recover / set-safe-window / events 全部跑通
 - [ ] 本地仍是实际触发与执行的第一责任链路
+- [ ] openclaw / ACP 故障不会破坏本地纯 CLI / WebUI 能力
+- [ ] 危险锁定期间的远程行为符合白名单，不会绕过手动恢复语义
 
 ---
 
@@ -257,7 +354,6 @@
 - [ ] Phase 3 openclaw 接入
 
 ## 之后再做
-- [ ] Phase 3 openclaw 接入中的远程配置变更规则收敛
 - [ ] Phase 4 轻量可观察性
 - [ ] Phase 5 风格化体验增强
 
