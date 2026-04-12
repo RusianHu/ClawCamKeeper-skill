@@ -6,7 +6,9 @@ Phase 2 增强：主备窗口自动切换、失效提示、风险程序管理
 
 import ctypes
 import time
+import shutil
 import subprocess
+from pathlib import Path
 from typing import Optional, List, Dict
 from loguru import logger
 
@@ -67,6 +69,22 @@ class ActionChain:
     def is_available(self) -> bool:
         """检查动作链路是否可用"""
         return HAS_WIN32
+
+    def _is_app_launchable(self, app_name: str) -> bool:
+        """检查应用是否可启动（存在于 PATH 或为有效路径）"""
+        if not app_name:
+            return False
+
+        candidate = Path(app_name)
+        if candidate.exists():
+            return True
+
+        resolved = shutil.which(app_name)
+        if resolved:
+            return True
+
+        logger.warning(f"安全窗口目标不可启动: {app_name}")
+        return False
 
     def find_windows_by_exe(self, exe_name: str) -> List[WindowInfo]:
         """根据进程名查找窗口"""
@@ -356,28 +374,39 @@ class ActionChain:
     def check_safe_window_available(self) -> bool:
         """
         检查安全窗口是否可用
-        Phase 2: 检查主备至少一个可用
+        Phase 2: 检查主备至少一个可用（已运行或至少可启动）
         """
+        self._safe_window_status[self.primary_safe_app] = False
+        self._safe_window_status[self.backup_safe_app] = False
+
         if not HAS_WIN32:
-            self._safe_window_status[self.primary_safe_app] = False
-            self._safe_window_status[self.backup_safe_app] = False
             logger.debug("pywin32 不可用，安全窗口链路不可用")
+            self._last_error = "Windows 窗口控制不可用，无法切换安全窗口"
             return False
 
-        if not HAS_PSUTIL:
-            self._safe_window_status[self.primary_safe_app] = True
-            self._safe_window_status[self.backup_safe_app] = True
-            logger.debug("psutil 不可用，跳过运行中窗口探测，按可启动降级模式处理安全窗口")
+        if HAS_PSUTIL:
+            for app_name in [self.primary_safe_app, self.backup_safe_app]:
+                windows = self.find_windows_by_exe(app_name)
+                if windows:
+                    self._safe_window_status[app_name] = True
+
+        if any(self._safe_window_status.values()):
+            self._last_error = None
             return True
 
-        for app_name in [self.primary_safe_app, self.backup_safe_app]:
-            windows = self.find_windows_by_exe(app_name)
-            if windows:
-                self._safe_window_status[app_name] = True
-                return True
-            self._safe_window_status[app_name] = False
-        # 即使没有运行，也可以启动
-        return True
+        launchable = any(
+            self._is_app_launchable(app_name)
+            for app_name in [self.primary_safe_app, self.backup_safe_app]
+        )
+        if launchable:
+            self._last_error = None
+            if not HAS_PSUTIL:
+                logger.debug("psutil 不可用，未探测运行中窗口，按可启动降级模式处理安全窗口")
+            return True
+
+        self._last_error = f"主备安全窗口均不可用（主: {self.primary_safe_app}, 备: {self.backup_safe_app}）"
+        logger.error(self._last_error)
+        return False
 
     def get_safe_window_status(self) -> Dict[str, bool]:
         """获取安全窗口状态"""
