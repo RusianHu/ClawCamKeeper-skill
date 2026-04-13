@@ -52,6 +52,30 @@ DEFAULT_CONFIG_TEMPLATE = {
         "host": "127.0.0.1",
         "port": 8765,
     },
+    "openclaw": {
+        "notifications": {
+            "enabled": False,
+            "command": "openclaw",
+            "timeout_seconds": 8,
+            "context_ttl_seconds": 900,
+            "message_prefix": "[ClawCamKeeper]",
+            "routes": {
+                "qqbot": {
+                    "target": "",
+                    "account": "",
+                },
+                "feishu": {
+                    "target": "",
+                    "account": "",
+                },
+            },
+            "fallback": {
+                "channel": "",
+                "target": "",
+                "account": "",
+            },
+        },
+    },
 }
 
 IMMEDIATE_KEYS = {
@@ -60,7 +84,12 @@ IMMEDIATE_KEYS = {
     "risk_apps",
     "detection.pre_alert_frames",
     "detection.full_alert_frames",
+    "openclaw.notifications",
 }
+
+IMMEDIATE_PREFIXES = (
+    "openclaw.notifications.",
+)
 
 DETECTOR_RESTART_PREFIXES = (
     "camera.",
@@ -152,6 +181,24 @@ def _normalize_str(value: Any, field_name: str) -> str:
     return normalized
 
 
+
+def _normalize_optional_str(value: Any, field_name: str) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+
+def _normalize_notification_route(value: Any, field_name: str) -> dict[str, Optional[str]]:
+    route = _ensure_dict(value, field_name)
+    return {
+        **route,
+        "target": _normalize_optional_str(route.get("target"), f"{field_name}.target"),
+        "account": _normalize_optional_str(route.get("account"), f"{field_name}.account"),
+    }
+
+
 def _normalize_risk_apps(value: Any) -> list[str]:
     if value is None:
         return []
@@ -185,11 +232,26 @@ def normalize_config(config: Optional[dict[str, Any]]) -> dict[str, Any]:
     logging_cfg = _ensure_dict(merged.get("logging"), "logging")
     safe_window = _ensure_dict(merged.get("safe_window"), "safe_window")
     webui = _ensure_dict(merged.get("webui"), "webui")
+    openclaw = _ensure_dict(merged.get("openclaw"), "openclaw")
+    openclaw_notifications = _ensure_dict(openclaw.get("notifications"), "openclaw.notifications")
+    openclaw_routes = _ensure_dict(openclaw_notifications.get("routes"), "openclaw.notifications.routes")
+    openclaw_fallback = _normalize_notification_route(
+        openclaw_notifications.get("fallback"),
+        "openclaw.notifications.fallback",
+    )
+
+    normalized_routes: dict[str, dict[str, Optional[str]]] = {}
+    for channel, route_value in openclaw_routes.items():
+        normalized_channel = _normalize_str(channel, "openclaw.notifications.routes.<channel>").lower()
+        normalized_routes[normalized_channel] = _normalize_notification_route(
+            route_value,
+            f"openclaw.notifications.routes.{normalized_channel}",
+        )
 
     extra_top_level = {
         key: deepcopy(value)
         for key, value in merged.items()
-        if key not in {"camera", "detection", "logging", "risk_apps", "safe_window", "webui"}
+        if key not in {"camera", "detection", "logging", "risk_apps", "safe_window", "webui", "openclaw"}
     }
 
     normalized = {
@@ -244,6 +306,37 @@ def normalize_config(config: Optional[dict[str, Any]]) -> dict[str, Any]:
             "host": _normalize_str(webui.get("host", "127.0.0.1"), "webui.host"),
             "port": _normalize_int(webui.get("port", 8765), "webui.port", minimum=1, maximum=65535),
         },
+        "openclaw": {
+            **openclaw,
+            "notifications": {
+                **openclaw_notifications,
+                "enabled": _normalize_bool(openclaw_notifications.get("enabled", False), "openclaw.notifications.enabled"),
+                "command": _normalize_str(openclaw_notifications.get("command", "openclaw"), "openclaw.notifications.command"),
+                "timeout_seconds": _normalize_int(
+                    openclaw_notifications.get("timeout_seconds", 8),
+                    "openclaw.notifications.timeout_seconds",
+                    minimum=1,
+                    maximum=120,
+                ),
+                "context_ttl_seconds": _normalize_int(
+                    openclaw_notifications.get("context_ttl_seconds", 900),
+                    "openclaw.notifications.context_ttl_seconds",
+                    minimum=1,
+                    maximum=86400,
+                ),
+                "message_prefix": _normalize_str(
+                    openclaw_notifications.get("message_prefix", "[ClawCamKeeper]"),
+                    "openclaw.notifications.message_prefix",
+                ),
+                "routes": normalized_routes,
+                "fallback": {
+                    **openclaw_fallback,
+                    "channel": _normalize_optional_str(openclaw_fallback.get("channel"), "openclaw.notifications.fallback.channel"),
+                    "target": _normalize_optional_str(openclaw_fallback.get("target"), "openclaw.notifications.fallback.target"),
+                    "account": _normalize_optional_str(openclaw_fallback.get("account"), "openclaw.notifications.fallback.account"),
+                },
+            },
+        },
     }
 
     rz = normalized["detection"]["risk_zone"]
@@ -289,6 +382,8 @@ def _flatten_config(config: dict[str, Any], prefix: str = "") -> dict[str, Any]:
 
 def _classify_changed_key(key: str) -> str:
     if key in IMMEDIATE_KEYS:
+        return "immediate"
+    if any(key == prefix.rstrip(".") or key.startswith(prefix) for prefix in IMMEDIATE_PREFIXES):
         return "immediate"
     if any(key == prefix.rstrip(".") or key.startswith(prefix) for prefix in DETECTOR_RESTART_PREFIXES):
         return "detector_restart_required"

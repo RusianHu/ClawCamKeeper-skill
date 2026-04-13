@@ -4,10 +4,11 @@
 """
 
 from copy import deepcopy
+import subprocess
 import threading
 import time
 from datetime import datetime
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 
 from loguru import logger
 
@@ -64,6 +65,42 @@ class MonitorEngine:
         self._events_lock = threading.Lock()
         self._max_events = 100  # 最多保留 100 条事件
 
+        # 轻量通知队列（供 openclaw / WebUI 轮询）
+        self._notifications: List[dict[str, Any]] = []
+        self._notifications_lock = threading.Lock()
+        self._max_notifications = 50
+        self._notification_seq = 0
+        self._notification_dedupe_window_s = 8.0
+        self._notification_last_sent_at: dict[str, float] = {}
+        self._notification_dispatch_lock = threading.Lock()
+        self._notification_context = {
+            "session_key": None,
+            "session_label": None,
+            "channel": None,
+            "target": None,
+            "account": None,
+            "source": None,
+            "registered_at": None,
+            "expires_at": None,
+        }
+        self._last_notification_dispatch_result: dict[str, Any] = {
+            "ok": None,
+            "status": "idle",
+            "message": "尚未执行主动通知回推",
+            "timestamp": None,
+        }
+
+        # 最近一次关键动作结果（供轻量可观察性面板展示）
+        self._last_action_result: dict[str, Any] = {
+            "event_type": None,
+            "title": "尚无关键动作",
+            "success": None,
+            "message": "系统刚启动，还没有可展示的关键动作结果",
+            "timestamp": None,
+            "details": {},
+        }
+        self._timeline_limit = 8
+
         # 状态变化回调
         self._on_state_change: Optional[Callable] = None
 
@@ -115,6 +152,16 @@ class MonitorEngine:
         det_config = self.config.get("detection", {})
         self.pre_alert_frames = det_config.get("pre_alert_frames", 10)
         self.full_alert_frames = det_config.get("full_alert_frames", 30)
+
+        openclaw_cfg = self.config.get("openclaw", {}) if isinstance(self.config, dict) else {}
+        notification_cfg = openclaw_cfg.get("notifications", {}) if isinstance(openclaw_cfg, dict) else {}
+        self._notification_enabled = bool(notification_cfg.get("enabled", False))
+        self._notification_command = str(notification_cfg.get("command", "openclaw")).strip() or "openclaw"
+        self._notification_timeout_seconds = int(notification_cfg.get("timeout_seconds", 8))
+        self._notification_context_ttl_seconds = int(notification_cfg.get("context_ttl_seconds", 900))
+        self._notification_message_prefix = str(notification_cfg.get("message_prefix", "[ClawCamKeeper]")).strip() or "[ClawCamKeeper]"
+        self._notification_routes = deepcopy(notification_cfg.get("routes", {})) if isinstance(notification_cfg.get("routes"), dict) else {}
+        self._notification_fallback = deepcopy(notification_cfg.get("fallback", {})) if isinstance(notification_cfg.get("fallback"), dict) else {}
 
     def _elapsed_ms(self, start: float, end: Optional[float] = None) -> float:
         """将 perf_counter 时间差换算为毫秒"""
@@ -201,13 +248,397 @@ class MonitorEngine:
         )
         return availability
 
+    def _build_state_summary(self) -> dict[str, Any]:
+        """构建轻量状态摘要，供事件/通知/UI 复用。"""
+        state = self.state_machine.state
+        return {
+            "arm_state": state.arm_state.value,
+            "alert_phase": state.alert_phase.value,
+            "is_locked": state.is_locked,
+            "is_protecting": bool(
+                state.arm_state == ArmState.ARMED
+                and state.camera_available
+                and state.action_chain_available
+                and state.safe_window_available
+            ),
+            "monitoring_active": bool(self._running and state.arm_state == ArmState.ARMED),
+            "camera_available": state.camera_available,
+            "safe_window_available": state.safe_window_available,
+            "action_chain_available": state.action_chain_available,
+            "primary_safe_app": self.action_chain.primary_safe_app,
+            "backup_safe_app": self.action_chain.backup_safe_app,
+            "risk_apps_count": len(self.action_chain.get_risk_apps()),
+            "last_event_message": state.last_event_message,
+            "last_event_time": state.last_event_time.isoformat() if state.last_event_time else None,
+        }
+
+    def _build_remote_action_matrix(self) -> dict[str, dict[str, Any]]:
+        """远程动作允许矩阵：仅表达控制语义，不承载业务状态。"""
+        return {
+            "unarmed": {
+                "allowed": ["status", "doctor", "events", "config-show", "arm", "set-safe-window"],
+                "blocked": ["disarm", "recover"],
+                "notes": ["未武装时允许只读查询和进入武装", "恢复仅在 danger_locked 状态显式允许"],
+            },
+            "armed": {
+                "allowed": ["status", "doctor", "events", "config-show", "disarm", "set-safe-window", "action-test"],
+                "blocked": ["arm", "recover"],
+                "notes": ["已武装时允许诊断与解除武装", "不允许把 recover 当作普通解除手段"],
+            },
+            "danger_locked": {
+                "allowed": ["status", "doctor", "events", "config-show", "set-safe-window", "recover"],
+                "blocked": ["arm", "disarm"],
+                "notes": ["危险锁定后保持静默锁定", "恢复必须显式调用 recover"],
+            },
+        }
+
+    def _build_recent_timeline(self, limit: Optional[int] = None) -> list[dict[str, Any]]:
+        """返回最小必要时间线，避免 UI 退化成重型取证视图。"""
+        effective_limit = limit or self._timeline_limit
+        tone_map = {
+            "arm": "ok",
+            "disarm": "muted",
+            "recover": "ok",
+            "pre_alert": "warn",
+            "full_alert": "danger",
+            "action_success": "ok",
+            "action_failure": "danger",
+            "danger_lock": "danger",
+            "action_test": "info",
+            "action_test_failure": "danger",
+            "camera_failure": "danger",
+            "camera_recovered": "ok",
+            "config_reload": "info",
+        }
+        with self._events_lock:
+            events = list(self._events[-effective_limit:])
+
+        return [
+            {
+                "timestamp": event.timestamp.isoformat(),
+                "event_type": event.event_type,
+                "message": event.message,
+                "tone": tone_map.get(event.event_type, "info"),
+                "summary": {
+                    "safe_window_used": event.data.get("safe_window_used") if isinstance(event.data, dict) else None,
+                    "risk_apps_minimized": event.data.get("risk_apps_minimized") if isinstance(event.data, dict) else None,
+                    "timings": event.data.get("timings") if isinstance(event.data, dict) else None,
+                },
+            }
+            for event in reversed(events)
+        ]
+
+    def _update_last_action_result(self, event_type: str, message: str, data: Optional[dict[str, Any]] = None) -> None:
+        """记录最近一次关键动作结果，供状态面板直接展示。"""
+        action_titles = {
+            "arm": "最近动作：武装",
+            "disarm": "最近动作：解除武装",
+            "recover": "最近动作：手动恢复",
+            "action_success": "最近动作：报警动作链成功",
+            "action_failure": "最近动作：报警动作链失败",
+            "action_test": "最近动作：动作链测试",
+            "action_test_failure": "最近动作：动作链测试失败",
+            "config_reload": "最近动作：配置热加载",
+        }
+        if event_type not in action_titles:
+            return
+
+        details = deepcopy(data or {})
+        success = None
+        if event_type in {"arm", "disarm", "recover", "action_success", "action_test", "config_reload"}:
+            success = True
+        elif event_type in {"action_failure", "action_test_failure"}:
+            success = False
+
+        self._last_action_result = {
+            "event_type": event_type,
+            "title": action_titles[event_type],
+            "success": success,
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+            "details": details,
+        }
+
+    @staticmethod
+    def _normalize_context_value(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    def _get_notification_context_snapshot(self) -> dict[str, Any]:
+        with self._notification_dispatch_lock:
+            context = deepcopy(self._notification_context)
+
+        expires_at = context.get("expires_at")
+        if expires_at is not None:
+            expires_in_s = max(0, int(expires_at - time.time()))
+            context["active"] = expires_in_s > 0
+            context["expires_in_s"] = expires_in_s
+        else:
+            context["active"] = False
+            context["expires_in_s"] = None
+        return context
+
+    def _get_active_notification_context(self) -> Optional[dict[str, Any]]:
+        snapshot = self._get_notification_context_snapshot()
+        return snapshot if snapshot.get("active") else None
+
+    def register_openclaw_notification_context(self, context: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        payload = deepcopy(context or {})
+        now = time.time()
+        normalized = {
+            "session_key": self._normalize_context_value(payload.get("session_key") or payload.get("sessionKey")),
+            "session_label": self._normalize_context_value(payload.get("session_label") or payload.get("sessionLabel")),
+            "channel": self._normalize_context_value(payload.get("channel")),
+            "target": self._normalize_context_value(payload.get("target")),
+            "account": self._normalize_context_value(payload.get("account")),
+            "source": self._normalize_context_value(payload.get("source")) or "api",
+            "registered_at": datetime.now().isoformat(),
+            "expires_at": now + self._notification_context_ttl_seconds,
+        }
+        if normalized["channel"]:
+            normalized["channel"] = normalized["channel"].lower()
+
+        with self._notification_dispatch_lock:
+            self._notification_context = normalized
+
+        return self._get_notification_context_snapshot()
+
+    def get_openclaw_notification_context(self) -> dict[str, Any]:
+        return self._get_notification_context_snapshot()
+
+    def get_notification_dispatch_status(self) -> dict[str, Any]:
+        with self._notification_dispatch_lock:
+            return deepcopy(self._last_notification_dispatch_result)
+
+    def _resolve_notification_route(self) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+        active_context = self._get_active_notification_context()
+        channel = active_context.get("channel") if active_context else None
+        target = active_context.get("target") if active_context else None
+        account = active_context.get("account") if active_context else None
+        route_source = "active_context"
+
+        configured_route = self._notification_routes.get(channel, {}) if channel else {}
+        if isinstance(configured_route, dict):
+            if not target:
+                target = self._normalize_context_value(configured_route.get("target"))
+                if target:
+                    route_source = "configured_route"
+            if not account:
+                account = self._normalize_context_value(configured_route.get("account"))
+
+        if not channel:
+            fallback_channel = self._normalize_context_value(self._notification_fallback.get("channel"))
+            if fallback_channel:
+                channel = fallback_channel.lower()
+                route_source = "fallback"
+            if not target:
+                target = self._normalize_context_value(self._notification_fallback.get("target"))
+            if not account:
+                account = self._normalize_context_value(self._notification_fallback.get("account"))
+
+        if not channel:
+            return None, "当前没有活动的 OpenClaw 渠道上下文，且未配置 fallback.channel"
+        if not target:
+            return None, f"渠道 {channel} 缺少 target，无法主动通知"
+
+        return {
+            "channel": channel,
+            "target": target,
+            "account": account,
+            "route_source": route_source,
+            "context": active_context,
+        }, None
+
+    def _format_push_message(self, notification: dict[str, Any]) -> str:
+        severity_map = {
+            "critical": "严重预警",
+            "error": "错误告警",
+            "warning": "风险提醒",
+            "info": "状态通知",
+        }
+        state_summary = notification.get("state_summary", {}) if isinstance(notification.get("state_summary"), dict) else {}
+        arm_state = state_summary.get("arm_state") or "-"
+        alert_phase = state_summary.get("alert_phase") or "-"
+        is_locked = "是" if state_summary.get("is_locked") else "否"
+        prefix = self._notification_message_prefix
+        return (
+            f"{prefix} {severity_map.get(notification.get('severity'), '通知')}\n"
+            f"事件: {notification.get('event_type', '-')}\n"
+            f"说明: {notification.get('message', '')}\n"
+            f"状态: arm={arm_state}, alert={alert_phase}, locked={is_locked}"
+        )
+
+    def _dispatch_notification(self, notification: dict[str, Any]) -> None:
+        delivery = notification.setdefault("delivery", {})
+        if not delivery.get("push"):
+            return
+
+        if not self._notification_enabled:
+            result = {
+                "ok": False,
+                "status": "disabled",
+                "message": "主动通知已禁用",
+                "timestamp": datetime.now().isoformat(),
+            }
+            delivery["dispatch"] = result
+            with self._notification_dispatch_lock:
+                self._last_notification_dispatch_result = deepcopy(result)
+            return
+
+        route, route_error = self._resolve_notification_route()
+        if route is None:
+            result = {
+                "ok": False,
+                "status": "not_routed",
+                "message": route_error,
+                "timestamp": datetime.now().isoformat(),
+            }
+            delivery["dispatch"] = result
+            with self._notification_dispatch_lock:
+                self._last_notification_dispatch_result = deepcopy(result)
+            return
+
+        command = [
+            self._notification_command,
+            "message",
+            "send",
+            "--json",
+            "--channel",
+            route["channel"],
+            "--target",
+            route["target"],
+            "--message",
+            self._format_push_message(notification),
+        ]
+        if route.get("account"):
+            command.extend(["--account", route["account"]])
+
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self._notification_timeout_seconds,
+                check=False,
+            )
+            stdout = (completed.stdout or "").strip()
+            stderr = (completed.stderr or "").strip()
+            result = {
+                "ok": completed.returncode == 0,
+                "status": "sent" if completed.returncode == 0 else "send_failed",
+                "message": "主动通知已发送" if completed.returncode == 0 else (stderr or stdout or "OpenClaw 主动通知发送失败"),
+                "timestamp": datetime.now().isoformat(),
+                "channel": route["channel"],
+                "target": route["target"],
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+                "command": command,
+                "exit_code": completed.returncode,
+                "stdout": stdout,
+                "stderr": stderr,
+            }
+        except subprocess.TimeoutExpired:
+            result = {
+                "ok": False,
+                "status": "timeout",
+                "message": f"主动通知发送超时（>{self._notification_timeout_seconds}s）",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route["channel"],
+                "target": route["target"],
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+                "command": command,
+            }
+        except Exception as exc:
+            result = {
+                "ok": False,
+                "status": "error",
+                "message": f"主动通知发送异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route["channel"],
+                "target": route["target"],
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+                "command": command,
+            }
+
+        delivery["dispatch"] = result
+        with self._notification_dispatch_lock:
+            self._last_notification_dispatch_result = deepcopy(result)
+
+    def _queue_notification(self, event_type: str, message: str, data: Optional[dict[str, Any]] = None) -> None:
+        """将关键事件放入轻量通知队列，用于消息转发与前端轮询。"""
+        policies = {
+            "arm": {"push": True, "severity": "info", "dedupe_key": "arm_success"},
+            "disarm": {"push": True, "severity": "info", "dedupe_key": "disarm_success"},
+            "recover": {"push": True, "severity": "info", "dedupe_key": "recover_success"},
+            "danger_lock": {"push": True, "severity": "critical", "dedupe_key": "danger_lock"},
+            "action_failure": {"push": True, "severity": "error", "dedupe_key": "action_failure"},
+            "camera_failure": {"push": True, "severity": "warning", "dedupe_key": "camera_failure"},
+        }
+        policy = policies.get(event_type)
+        if not policy:
+            return
+
+        now = time.time()
+        dedupe_key = policy["dedupe_key"]
+        last_sent_at = self._notification_last_sent_at.get(dedupe_key, 0.0)
+        if now - last_sent_at < self._notification_dedupe_window_s:
+            return
+        self._notification_last_sent_at[dedupe_key] = now
+
+        payload = deepcopy(data or {})
+        timings = payload.get("timings", {}) if isinstance(payload, dict) else {}
+        state_summary = self._build_state_summary()
+        notification = {
+            "id": self._notification_seq + 1,
+            "timestamp": datetime.now().isoformat(),
+            "event_type": event_type,
+            "severity": policy["severity"],
+            "delivery": {
+                "push": bool(policy.get("push", False)),
+                "query": True,
+                "dedupe_window_s": self._notification_dedupe_window_s,
+                "active_push_enabled": self._notification_enabled,
+                "dispatch": None,
+            },
+            "message": message,
+            "state_summary": state_summary,
+            "timings": timings if isinstance(timings, dict) else {},
+            "details": payload,
+        }
+        self._notification_seq += 1
+        notification["id"] = self._notification_seq
+
+        with self._notifications_lock:
+            self._notifications.append(notification)
+            if len(self._notifications) > self._max_notifications:
+                self._notifications = self._notifications[-self._max_notifications :]
+
+        self._dispatch_notification(notification)
+
+    def get_notifications(self, since_id: int = 0, limit: int = 20) -> list[dict[str, Any]]:
+        """返回轻量通知队列，供 ACP / WebUI 轮询。"""
+        with self._notifications_lock:
+            items = [deepcopy(item) for item in self._notifications if item.get("id", 0) > since_id]
+        return items[:limit] if limit > 0 else items
+
     def _add_event(self, event_type: str, message: str, data: dict = None):
         """添加事件记录"""
-        event = EventRecord(event_type, message, data)
+        payload = deepcopy(data or {})
+        payload.setdefault("state_summary", self._build_state_summary())
+        event = EventRecord(event_type, message, payload)
         with self._events_lock:
             self._events.append(event)
             if len(self._events) > self._max_events:
                 self._events = self._events[-self._max_events :]
+
+        self._update_last_action_result(event_type, message, payload)
+        self._queue_notification(event_type, message, payload)
 
     def get_events(self, limit: int = 20) -> List[dict]:
         """获取最近的事件记录"""
@@ -508,13 +939,28 @@ class MonitorEngine:
         if result["success"]:
             self._add_event("action_success", "报警动作链执行成功", result)
             self.state_machine.enter_danger_lock()
-            self._add_event("danger_lock", "进入危险锁定状态")
+            self._add_event(
+                "danger_lock",
+                "进入危险锁定状态，需人工恢复",
+                {
+                    "safe_window_used": result.get("safe_window_used") or result.get("target_app"),
+                    "risk_apps_minimized": result.get("risk_apps_minimized"),
+                    "timings": result.get("timings", {}),
+                },
+            )
             self._stop_detection()
         else:
             self._add_event("action_failure", "报警动作链执行失败", result)
             logger.error(f"报警动作链执行失败: {result['errors']}")
             self.state_machine.enter_danger_lock()
-            self._add_event("danger_lock", "动作失败，仍进入危险锁定状态")
+            self._add_event(
+                "danger_lock",
+                "动作失败，仍进入危险锁定状态，需人工恢复",
+                {
+                    "errors": result.get("errors", []),
+                    "timings": result.get("timings", {}),
+                },
+            )
             self._stop_detection()
 
         self._update_engine_perf(last_full_alert_ms=self._elapsed_ms(started_at))
@@ -792,6 +1238,53 @@ class MonitorEngine:
         status["primary_safe_app"] = self.action_chain.primary_safe_app
         status["backup_safe_app"] = self.action_chain.backup_safe_app
         status["risk_apps"] = self.action_chain.get_risk_apps()
+        status["monitoring_active"] = bool(self._running and state.arm_state == ArmState.ARMED)
+        status["last_action_result"] = deepcopy(self._last_action_result)
+        status["timeline"] = self._build_recent_timeline()
+        status["remote_action_matrix"] = self._build_remote_action_matrix()
+        status["session_policy"] = {
+            "session_label_scope": "conversation_isolation_only",
+            "business_state_in_session": False,
+            "business_state_source": "local_engine_runtime",
+            "recommended_usage": [
+                "session / session-label 仅用于会话隔离",
+                "业务状态必须始终以本地 status/state_snapshot 为准",
+            ],
+        }
+        with self._notifications_lock:
+            pending_notifications = len(self._notifications)
+            latest_notification_id = self._notifications[-1]["id"] if self._notifications else 0
+        status["notification_channel"] = {
+            "poll_endpoint": "/api/notifications",
+            "supported_immediate_events": ["arm", "disarm", "recover", "danger_lock", "action_failure", "camera_failure"],
+            "query_only_events": ["action_success", "action_test", "config_reload", "pre_alert"],
+            "pending": pending_notifications,
+            "latest_id": latest_notification_id,
+            "dedupe_window_s": self._notification_dedupe_window_s,
+            "active_push_enabled": self._notification_enabled,
+            "push_command": self._notification_command,
+            "context": self._get_notification_context_snapshot(),
+            "last_dispatch": self.get_notification_dispatch_status(),
+        }
+        status["observability"] = {
+            "protection_label": (
+                "危险锁定中，需人工恢复"
+                if status.get("is_locked")
+                else "实时保护中"
+                if status.get("is_protecting")
+                else "已武装，等待触发"
+                if status.get("arm_state") == ArmState.ARMED.value
+                else "未武装"
+            ),
+            "confidence_mode": "lightweight_no_forensics",
+            "last_action_success": self._last_action_result.get("success"),
+            "timeline_size": len(status["timeline"]),
+        }
+        status["evidence_policy"] = {
+            "heavy_image_capture": False,
+            "default_frame_retention": "transient_only",
+            "forensics_mode": False,
+        }
         status["perf"] = self.get_perf_snapshot()
         status["timings"] = {
             "total_ms": self._elapsed_ms(started_at),

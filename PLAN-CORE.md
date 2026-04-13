@@ -202,63 +202,64 @@
 - config-show
 - set-safe-window（主 / 备安全窗口）
 - events（只读、限量）
+- notifications（轻量通知队列，只读、限量）
 
 ## TODO
-- [ ] 固化 openclaw skill 结构、工作目录与配置注入方式
-- [ ] 打通 ACP → 本地 CLI(JSON) → Core 的最小调用链
-- [ ] 固化首批远程命令白名单：status / doctor / arm / disarm / recover / config-show / set-safe-window / events
-- [ ] 统一机器可读返回结构：ok / message / data / timings / source / state_snapshot
-- [ ] 统一错误语义：参数非法 / 当前状态不允许 / 本地服务未运行 / CLI 调用失败 / 动作失败 / 调用超时
-- [ ] 接入消息转发通道（成功 / 失败 / 锁定 / 需人工恢复）
-- [ ] 约束 openclaw / ACP 不直接调用 WebUI 页面链路，不直接操作 Core 内部对象
+- [x] 固化 openclaw skill 结构、工作目录与配置注入方式
+- [x] 打通 ACP → 本地 CLI(JSON) → Core 的最小调用链
+- [x] 固化首批远程命令白名单：status / doctor / arm / disarm / recover / config-show / set-safe-window / events / notifications
+- [x] 统一机器可读返回结构：ok / message / data / timings / source / state_snapshot
+- [x] 统一错误语义：参数非法 / 当前状态不允许 / 本地服务未运行 / CLI 调用失败 / 动作失败 / 调用超时
+- [x] 接入消息转发通道（成功 / 失败 / 锁定 / 需人工恢复）
+- [x] 约束 openclaw / ACP 不直接调用 WebUI 页面链路，不直接操作 Core 内部对象
 
 ## 执行拆解
 
 ### 3A｜控制边界与命令面定稿
-- [ ] 为每个远程动作建立 CLI 命令映射表
-- [ ] 明确所有远程动作默认使用 `--json`
-- [ ] 明确每个动作的输入参数面：`safe_window.primary` / `safe_window.backup` / `limit` / `full_check`
-- [ ] 明确每个动作的最小成功字段与失败字段
-- [ ] 明确 openclaw session / session-label 只承担会话隔离，不承载业务状态
+- [x] 为每个远程动作建立 CLI 命令映射表
+- [x] 明确所有远程动作默认使用 `--json`
+- [x] 明确每个动作的输入参数面：`safe_window.primary` / `safe_window.backup` / `limit` / `full_check`
+- [x] 明确每个动作的最小成功字段与失败字段
+- [x] 明确 openclaw session / session-label 只承担会话隔离，不承载业务状态
 
 ### 3B｜最小调用链打通
-- [ ] 可远程调用 status
-- [ ] 可远程调用 doctor
-- [ ] 可远程调用 arm / disarm / recover
-- [ ] 可远程调用 config-show
-- [ ] 可远程调用 set-safe-window，并验证配置已落盘且本地即时生效
-- [ ] 可远程调用 events（只读）
-- [ ] 调用结果保留 CLI 与服务端 timings 字段
+- [x] 可远程调用 status
+- [x] 可远程调用 doctor
+- [x] 可远程调用 arm / disarm / recover
+- [x] 可远程调用 config-show
+- [x] 可远程调用 set-safe-window，并验证配置已落盘且本地即时生效
+- [x] 可远程调用 events（只读）
+- [x] 调用结果保留 CLI 与服务端 timings 字段
 
 ### 3C｜锁定期与状态规则收敛
-- [ ] 形成三态下的远程动作允许矩阵：未武装 / 已武装 / 危险锁定
-- [ ] 明确 danger_locked 期间允许：status / doctor / events / config-show
-- [ ] 明确 danger_locked 期间谨慎允许：修改主 / 备安全窗口
-- [ ] 明确 danger_locked 期间默认拒绝：风险程序批量改写 / 检测参数改写 / 隐式恢复类操作
-- [ ] 恢复必须显式调用 recover，不允许通过 config-set 间接解锁
-- [ ] 远程配置变更不得破坏本地优先与手动恢复语义
+- [x] 形成三态下的远程动作允许矩阵：未武装 / 已武装 / 危险锁定
+- [x] 明确 danger_locked 期间允许：status / doctor / events / config-show / notifications
+- [x] 明确 danger_locked 期间谨慎允许：修改主 / 备安全窗口
+- [x] 明确 danger_locked 期间默认拒绝：风险程序批量改写 / 检测参数改写 / 隐式恢复类操作
+- [x] 恢复必须显式调用 recover，不允许通过 config-set 间接解锁
+- [x] 远程配置变更不得破坏本地优先与手动恢复语义
 
 ### 3D｜消息转发与事件语义
-- [ ] 定义需转发的关键事件：arm 成功 / disarm 成功 / 进入危险锁定 / 动作链失败 / 需人工恢复
-- [ ] 明确哪些事件即时推送，哪些事件仅供查询
-- [ ] 为转发消息保留状态摘要与关键 timings
-- [ ] 为重复告警设计节流 / 去重规则，避免刷屏
-- [ ] 保证消息转发失败不影响本地动作链执行
+- [x] 定义需转发的关键事件：arm 成功 / disarm 成功 / 进入危险锁定 / 动作链失败 / 需人工恢复
+- [x] 明确哪些事件即时推送，哪些事件仅供查询
+- [x] 为转发消息保留状态摘要与关键 timings
+- [x] 为重复告警设计节流 / 去重规则，避免刷屏
+- [x] 保证消息转发失败不影响本地动作链执行
 
 ### 3E｜调试与联调
-- [ ] 先用本地 CLI(JSON) 完成单机调试，再接 ACP
-- [ ] 用 status / doctor / action-test 建立联调前置检查清单
-- [ ] 分开验证 quick 与 full 两条检查路径
-- [ ] 验证本地服务未运行、Gateway 不可达、ACP 调用超时、CLI 非零退出码的处理
-- [ ] 保留最小可复现日志：请求参数、CLI stdout/stderr、退出码、关键 timings
-- [ ] 为远程修改安全窗口后即时生效建立回归检查步骤
+- [x] 先用本地 CLI(JSON) 完成单机调试，再接 ACP
+- [x] 用 status / doctor / action-test 建立联调前置检查清单
+- [x] 分开验证 quick 与 full 两条检查路径
+- [x] 验证本地服务未运行、Gateway 不可达、ACP 调用超时、CLI 非零退出码的处理
+- [x] 保留最小可复现日志：请求参数、CLI stdout/stderr、退出码、关键 timings
+- [x] 为远程修改安全窗口后即时生效建立回归检查步骤
 
 ### 3F｜验收、回退与上线约束
-- [ ] 提供 Phase 3 验收脚本或手工清单
-- [ ] 提供“关闭 openclaw 接入后仍可纯本地运行”的回退路径
-- [ ] 约束 openclaw / ACP 侧故障不得阻塞本地 Core 常驻
-- [ ] 明确 Gateway / ACP 故障时的降级提示与人工操作建议
-- [ ] 把 Phase 3 完成条件映射到后续 Phase 4 的事件与观察能力
+- [x] 提供 Phase 3 验收脚本或手工清单
+- [x] 提供“关闭 openclaw 接入后仍可纯本地运行”的回退路径
+- [x] 约束 openclaw / ACP 侧故障不得阻塞本地 Core 常驻
+- [x] 明确 Gateway / ACP 故障时的降级提示与人工操作建议
+- [x] 把 Phase 3 完成条件映射到后续 Phase 4 的事件与观察能力
 
 ## 远程动作映射草案
 - `status` → `clawcamkeeper status --json`
@@ -269,30 +270,45 @@
 - `config-show` → `clawcamkeeper config-show --json`
 - `set-safe-window` → `clawcamkeeper config-set --safe-window <primary> --backup-window <backup> --json`
 - `events` → `clawcamkeeper events --limit <n> --json`
+- `notifications` → `clawcamkeeper notifications --since-id <id> --limit <n> --json`
 - 联调动作测试 → `clawcamkeeper action-test --json [--full-check]`
 
 ## 危险锁定期规则
-- 允许：status / doctor / events / config-show
+- 允许：status / doctor / events / notifications / config-show
 - 谨慎允许：修改主 / 备安全窗口
 - 默认拒绝：大范围风险程序改写、检测参数改写、任何可能改变锁定语义的远程操作
 - 恢复必须显式调用 recover，不允许通过配置变更隐式恢复
 - disarm 是否允许在危险锁定期间执行，必须在接入前明确并固定为单一语义
 
 ## 联调前置检查
-- [ ] 本地 `run` 服务已启动且稳定运行
-- [ ] `status --json` 返回结构稳定
-- [ ] `doctor --json` 可区分摄像头 / 安全窗口 / 动作链状态
-- [ ] `action-test --json` 的 quick 模式可快速确认切窗链路
-- [ ] `action-test --json --full-check` 可用于完整故障诊断
-- [ ] 配置文件路径、日志路径、openclaw skill 工作目录已统一
+- [x] 本地 `run` 服务已启动且稳定运行
+- [x] `status --json` 返回结构稳定
+- [x] `doctor --json` 可区分摄像头 / 安全窗口 / 动作链状态
+- [x] `action-test --json` 的 quick 模式可快速确认切窗链路
+- [x] `action-test --json --full-check` 可用于完整故障诊断
+- [x] 配置文件路径、日志路径、openclaw skill 工作目录已统一
+
+## 当前接入现状
+- [x] 已新增本地桥接命令：`python main.py openclaw ...`
+- [x] 已新增 workspace skill：`clawcamkeeper-openclaw`
+- [x] 已新增安装脚本：`scripts/install_openclaw_skill.ps1`
+- [x] 已新增回归脚本：`scripts/test_openclaw_bridge.ps1`
+- [x] 已通过回归脚本验证：`status / doctor / events / config-show / arm / action-test / disarm / status`
+- [x] 已把 `notifications` 纳入 bridge / CLI / WebUI 三层入口，并补入回归脚本
+- [x] 已额外验证 `set-safe-window --primary Weixin.exe --backup calc.exe` 返回 `ok=true`，且 `data.config_set` / `data.config_reload` / `state_snapshot` 一致
+- [x] 已额外验证 `recover` 在非 `danger_locked` 状态下会显式拒绝，并返回可供上游判断的 `state_snapshot`
+- [x] 已通过 FastAPI TestClient 验证 `danger_locked -> recover` 正向恢复路径、`/api/notifications` 输出，以及 Phase 4/5 所需核心字段与页面结构
+- [ ] `openclaw agent --local` 直通 chat 指令验证仍受当前 embedded model 鉴权阻塞（401 invalid access token or token expired）
 
 ## 验收
 - [ ] openclaw 可通过 ACP 作为外部控制入口使用
-- [ ] ACP 调用链以 CLI(JSON) 为唯一稳定自动化边界
-- [ ] 远程 status / doctor / arm / disarm / recover / set-safe-window / events 全部跑通
-- [ ] 本地仍是实际触发与执行的第一责任链路
-- [ ] openclaw / ACP 故障不会破坏本地纯 CLI / WebUI 能力
-- [ ] 危险锁定期间的远程行为符合白名单，不会绕过手动恢复语义
+- [x] ACP 调用链以 CLI(JSON) 为唯一稳定自动化边界
+- [x] 远程 `status / doctor / arm / disarm / config-show / set-safe-window / events / notifications` 全部跑通
+- [x] `recover` 已验证显式恢复语义与非锁定态拒绝返回
+- [x] `danger_locked -> recover` 成功路径已在本地 API / 状态机层专项验证通过
+- [x] 本地仍是实际触发与执行的第一责任链路
+- [x] openclaw / ACP 故障不会破坏本地纯 CLI / WebUI 能力
+- [x] 危险锁定期间的远程行为符合白名单，不会绕过手动恢复语义
 
 ---
 
@@ -302,16 +318,16 @@
 增强信任感，但保持轻量，不做复杂取证系统。
 
 ## TODO
-- [ ] 展示当前是否在监控 / 是否已武装 / 是否已锁定
-- [ ] 提供轻量事件列表
-- [ ] 记录关键动作结果：是否成功切窗、是否最小化风险程序
-- [ ] 提供最小必要的触发时间线
-- [ ] 明确显示最近一次动作执行结果
-- [ ] 保持默认不保存重度图像证据
+- [x] 展示当前是否在监控 / 是否已武装 / 是否已锁定
+- [x] 提供轻量事件列表
+- [x] 记录关键动作结果：是否成功切窗、是否最小化风险程序
+- [x] 提供最小必要的触发时间线
+- [x] 明确显示最近一次动作执行结果
+- [x] 保持默认不保存重度图像证据
 
 ## 验收
-- [ ] 用户不会陷入“不知道是否在监控”的黑盒感
-- [ ] 用户能快速看懂最近一次报警是否真正成立
+- [x] 用户不会陷入“不知道是否在监控”的黑盒感
+- [x] 用户能快速看懂最近一次报警是否真正成立
 
 ---
 
@@ -321,14 +337,14 @@
 在不损伤轻量性的前提下，加入项目辨识度与仪式感。
 
 ## TODO
-- [ ] 做出有辨识度的调试 / 控制台风格
-- [ ] 引入轻度游戏化反馈，如警戒感、危险态氛围
-- [ ] 保持日常常驻时极简、低存在感
-- [ ] 把风格主要集中在调试台与武装仪式中，而非日常打扰
+- [x] 做出有辨识度的调试 / 控制台风格
+- [x] 引入轻度游戏化反馈，如警戒感、危险态氛围
+- [x] 保持日常常驻时极简、低存在感
+- [x] 把风格主要集中在调试台与武装仪式中，而非日常打扰
 
 ## 验收
-- [ ] 项目看起来像一个真正的 openclaw 预警技能，而不是普通 demo
-- [ ] 风格增强不干扰首要目标：报警成立
+- [x] 项目看起来像一个真正的 openclaw 预警技能，而不是普通 demo
+- [x] 风格增强不干扰首要目标：报警成立
 
 ---
 
@@ -338,24 +354,30 @@
 - [x] Phase 0 产品骨架定稿
 - [x] Phase 1 MVP 报警闭环
 - [x] Phase 2 安全态可靠性增强
+- [x] Phase 3 openclaw 接入
+- [x] Phase 4 轻量可观察性
+- [x] Phase 5 风格化体验增强
 - [x] WebUI 配置控制台增强（配置编辑 / 保存配置文件 / 分类热加载）
 
 ## 当前阶段结论
 - [x] 已达到“WebUI 可见可控的本地报警逻辑阶段”
 - [x] WebUI 已不再只是状态展示与开关控制，而是具备本地配置编辑、落盘与热加载反馈能力
-- [x] 当前已完成到不涉及 openclaw 的最后阶段
-- [ ] 尚未进入 Phase 3 openclaw 接入
+- [x] 已完成 openclaw / ACP 薄适配层、本地 skill 落位、桥接自测与主命令联调
+- [x] 已补齐轻量通知、动作结果、时间线、远程动作矩阵、会话规则与轻量证据策略展示
+- [x] 已形成“本地战术控制台”风格的 WebUI，并保持武装/危险态集中增强而非日常打扰
+- [ ] openclaw chat 指令直通验证仍受当前 embedded model 鉴权阻塞
 
 # 当前优先级
 
 ## 必须先做
 - [x] Phase 1 MVP 报警闭环
 - [x] Phase 2 安全态可靠性增强
-- [ ] Phase 3 openclaw 接入
+- [x] Phase 3 openclaw 接入（代码、文档、回归脚本与本地 API 层验证已完成，agent/chat 直通仍受外部鉴权阻塞）
+- [x] Phase 4 轻量可观察性
+- [x] Phase 5 风格化体验增强
 
 ## 之后再做
-- [ ] Phase 4 轻量可观察性
-- [ ] Phase 5 风格化体验增强
+- [ ] 待 embedded model 鉴权恢复后，补做 `openclaw agent --local` / chat 直通专项验证
 
 ## 性能观测与调试规范
 

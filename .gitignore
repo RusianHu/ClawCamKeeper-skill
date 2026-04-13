@@ -4,3 +4,5 @@
 /webui/__pycache__
 *.log
 /__pycache__
+tmp_*
+tmp-*

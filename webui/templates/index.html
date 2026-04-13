@@ -1147,6 +1147,268 @@
             line-height: 1.8;
         }
 
+        .status-note + .status-note {
+            margin-top: 10px;
+        }
+
+        body[data-threat-state="armed"] {
+            background:
+                radial-gradient(circle at top left, rgba(44, 255, 152, 0.08), transparent 26%),
+                radial-gradient(circle at top right, rgba(118, 240, 255, 0.06), transparent 28%),
+                linear-gradient(180deg, #05070a 0%, #09100f 48%, #07080d 100%);
+        }
+
+        body[data-threat-state="danger_locked"] {
+            background:
+                radial-gradient(circle at top center, rgba(255, 85, 119, 0.16), transparent 34%),
+                radial-gradient(circle at 20% 20%, rgba(255, 184, 77, 0.08), transparent 30%),
+                linear-gradient(180deg, #090308 0%, #12060b 52%, #07080d 100%);
+        }
+
+        .hero-ribbon {
+            margin-top: 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.03);
+        }
+
+        .hero-ribbon-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 32px;
+            padding: 0 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(118, 240, 255, 0.26);
+            color: var(--accent-cyan);
+            background: rgba(118, 240, 255, 0.08);
+            font-size: 0.72rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .hero-ribbon-copy {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            line-height: 1.7;
+            flex: 1 1 260px;
+        }
+
+        .meta-stack {
+            display: grid;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .meta-inline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.025);
+        }
+
+        .meta-inline .meta-label {
+            margin-bottom: 0;
+        }
+
+        .watch-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        @media (max-width: 900px) {
+            .watch-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 560px) {
+            .watch-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .watch-card {
+            display: grid;
+            gap: 8px;
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.018));
+        }
+
+        .watch-label {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        .watch-value {
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            line-height: 1.4;
+        }
+
+        .watch-note {
+            color: var(--text-secondary);
+            font-size: 0.74rem;
+            line-height: 1.6;
+        }
+
+        .action-report {
+            display: grid;
+            gap: 14px;
+        }
+
+        .action-report-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .action-title {
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .action-meta {
+            color: var(--text-muted);
+            font-size: 0.74rem;
+            line-height: 1.6;
+            margin-top: 6px;
+        }
+
+        .timeline-mini {
+            display: grid;
+            gap: 8px;
+        }
+
+        .timeline-mini-empty {
+            padding: 14px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px dashed rgba(255,255,255,0.08);
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            text-align: center;
+        }
+
+        .timeline-mini-item {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: start;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.024);
+        }
+
+        .timeline-mini-bullet {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-top: 6px;
+            background: var(--accent-blue);
+            box-shadow: 0 0 0 5px rgba(100, 163, 255, 0.1);
+        }
+
+        .timeline-mini-bullet.ok {
+            background: var(--accent-green);
+            box-shadow: 0 0 0 5px rgba(44, 255, 152, 0.1);
+        }
+
+        .timeline-mini-bullet.warn {
+            background: var(--accent-yellow);
+            box-shadow: 0 0 0 5px rgba(255, 184, 77, 0.1);
+        }
+
+        .timeline-mini-bullet.danger {
+            background: var(--accent-red);
+            box-shadow: 0 0 0 5px rgba(255, 85, 119, 0.12);
+        }
+
+        .timeline-mini-copy {
+            display: grid;
+            gap: 4px;
+        }
+
+        .timeline-mini-title {
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .timeline-mini-meta {
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            line-height: 1.6;
+        }
+
+        .matrix-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .matrix-state {
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.025);
+        }
+
+        .matrix-state-title {
+            color: var(--text-primary);
+            font-size: 0.82rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .matrix-state-body {
+            color: var(--text-secondary);
+            font-size: 0.76rem;
+            line-height: 1.7;
+        }
+
+        .matrix-state-body strong {
+            color: var(--text-primary);
+        }
+
+        .notification.critical {
+            border-color: rgba(255,85,119,0.46);
+            box-shadow: 0 0 0 1px rgba(255,85,119,0.16), var(--panel-shadow);
+        }
+
+        .hero-ribbon[data-tone="danger"] .hero-ribbon-badge {
+            color: var(--accent-red);
+            border-color: rgba(255,85,119,0.28);
+            background: rgba(255,85,119,0.1);
+            box-shadow: var(--glow-red);
+        }
+
+        .hero-ribbon[data-tone="armed"] .hero-ribbon-badge {
+            color: var(--accent-green);
+            border-color: rgba(44,255,152,0.28);
+            background: rgba(44,255,152,0.08);
+            box-shadow: var(--glow-green);
+        }
+
         .notification {
             position: fixed;
             top: 22px;
@@ -1242,6 +1504,10 @@
                 <div class="subtitle">
                     本地优先的工位摸鱼防护控制台。现在不仅能查看状态与武装系统，也能直接在 WebUI 中编辑大部分配置、保存到 YAML、并把可热加载项即时应用到运行中的核心引擎。
                 </div>
+                <div class="hero-ribbon" id="heroThreatRibbon" data-tone="idle">
+                    <span class="hero-ribbon-badge" id="heroThreatBadge">STANDBY</span>
+                    <span class="hero-ribbon-copy" id="heroThreatText">本地控制台已上线，等待保护状态同步。</span>
+                </div>
                 <div class="hero-tags">
                     <span class="hero-tag">Config Hot Reload</span>
                     <span class="hero-tag">Detector Restart Aware</span>
@@ -1267,6 +1533,20 @@
                     <div class="meta-item">
                         <div class="meta-label">Risk Apps</div>
                         <div class="meta-value" id="heroRiskAppCount">-</div>
+                    </div>
+                </div>
+                <div class="meta-stack">
+                    <div class="meta-inline">
+                        <div class="meta-label">Monitoring Loop</div>
+                        <div class="meta-value" id="heroMonitoringState">等待状态...</div>
+                    </div>
+                    <div class="meta-inline">
+                        <div class="meta-label">Last Action</div>
+                        <div class="meta-value" id="heroLastAction">等待状态...</div>
+                    </div>
+                    <div class="meta-inline">
+                        <div class="meta-label">Notification Channel</div>
+                        <div class="meta-value" id="heroNotificationState">等待状态...</div>
                     </div>
                 </div>
             </aside>
@@ -1310,6 +1590,29 @@
                             <div class="controls-meta">
                                 <span class="unsaved-indicator" id="unsavedChangesIndicator">表单已同步到当前运行配置</span>
                             </div>
+                            <div class="watch-grid">
+                                <div class="watch-card">
+                                    <span class="watch-label">Monitoring</span>
+                                    <strong class="watch-value" id="watchMonitoring">-</strong>
+                                    <span class="watch-note" id="watchMonitoringNote">-</span>
+                                </div>
+                                <div class="watch-card">
+                                    <span class="watch-label">Lock Rule</span>
+                                    <strong class="watch-value" id="watchLockState">-</strong>
+                                    <span class="watch-note" id="watchLockNote">-</span>
+                                </div>
+                                <div class="watch-card">
+                                    <span class="watch-label">Last Action</span>
+                                    <strong class="watch-value" id="watchLastAction">-</strong>
+                                    <span class="watch-note" id="watchLastActionNote">-</span>
+                                </div>
+                                <div class="watch-card">
+                                    <span class="watch-label">Notify Queue</span>
+                                    <strong class="watch-value" id="watchNotifications">-</strong>
+                                    <span class="watch-note" id="watchNotificationsNote">-</span>
+                                </div>
+                            </div>
+                            <div class="status-note" id="statusRuleNote">轻量观察模式已启用：默认不保留重度图像证据，所有业务状态始终以本地引擎实时状态为准。</div>
                         </div>
                     </div>
                 </section>
@@ -1340,12 +1643,67 @@
                     </div>
                     <ul class="info-list" id="infoList">
                         <li><span class="label">武装状态</span><span class="value" id="infoArmState">-</span></li>
+                        <li><span class="label">监控循环</span><span class="value" id="infoMonitoring">-</span></li>
+                        <li><span class="label">危险锁定</span><span class="value" id="infoLockState">-</span></li>
                         <li><span class="label">报警阶段</span><span class="value" id="infoAlertPhase">-</span></li>
                         <li><span class="label">摄像头</span><span class="value" id="infoCamera">-</span></li>
                         <li><span class="label">安全窗口</span><span class="value" id="infoSafeWindow">-</span></li>
                         <li><span class="label">动作链路</span><span class="value" id="infoActionChain">-</span></li>
+                        <li><span class="label">最近动作</span><span class="value" id="infoLastAction">-</span></li>
                         <li><span class="label">最后事件</span><span class="value" id="infoLastEvent">-</span></li>
                     </ul>
+                </section>
+
+                <section class="card" id="actionReportCard">
+                    <div class="card-title">
+                        <span>Tactical Debrief</span>
+                        <strong>最近动作结果</strong>
+                    </div>
+                    <div class="action-report">
+                        <div class="action-report-head">
+                            <div>
+                                <div class="action-title" id="actionReportTitle">尚无关键动作</div>
+                                <div class="action-meta" id="actionReportMeta">等待状态数据...</div>
+                            </div>
+                            <span class="result-chip chip-muted" id="actionReportTone">待机</span>
+                        </div>
+                        <div class="status-note" id="actionReportMessage">系统刚启动，还没有可展示的关键动作结果。</div>
+                        <div>
+                            <div class="meta-label">关键摘要</div>
+                            <div class="result-chip-list" id="actionDetailChips">
+                                <span class="result-chip chip-muted">暂无</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="meta-label">最小必要时间线</div>
+                            <div class="timeline-mini" id="miniTimeline">
+                                <div class="timeline-mini-empty">等待事件...</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card" id="remoteConsoleCard">
+                    <div class="card-title">
+                        <span>OpenClaw / ACP</span>
+                        <strong>远程规则与消息通道</strong>
+                    </div>
+                    <div class="matrix-grid">
+                        <div class="matrix-state">
+                            <div class="matrix-state-title">未武装</div>
+                            <div class="matrix-state-body" id="matrixUnarmed">加载中...</div>
+                        </div>
+                        <div class="matrix-state">
+                            <div class="matrix-state-title">已武装</div>
+                            <div class="matrix-state-body" id="matrixArmed">加载中...</div>
+                        </div>
+                        <div class="matrix-state">
+                            <div class="matrix-state-title">危险锁定</div>
+                            <div class="matrix-state-body" id="matrixDangerLocked">加载中...</div>
+                        </div>
+                    </div>
+                    <div class="status-note" id="sessionPolicyNote">session-label 仅用于会话隔离，不承载业务状态。</div>
+                    <div class="status-note" id="notificationChannelNote">通知通道初始化中...</div>
                 </section>
 
                 <section class="card" id="eventsCard">
@@ -1621,6 +1979,7 @@
         let currentConfig = null;
         let statusInterval = null;
         let eventsInterval = null;
+        let notificationInterval = null;
         let currentVideoMode = 'frame';
         let allProcesses = [];
         let selectedRiskApps = [];
@@ -1628,6 +1987,8 @@
         let processesLoaded = false;
         let isPopulatingForm = false;
         let lastRenderedEventKeys = [];
+        let lastNotificationId = 0;
+        let notificationsBootstrapped = false;
 
         document.addEventListener('DOMContentLoaded', () => {
             gsap.from('header', { opacity: 0, y: -18, duration: 0.6, ease: 'power2.out' });
@@ -1650,8 +2011,10 @@
         function startPolling() {
             updateStatus();
             updateEvents();
+            updateNotifications(true);
             statusInterval = setInterval(updateStatus, 1000);
             eventsInterval = setInterval(updateEvents, 3000);
+            notificationInterval = setInterval(() => updateNotifications(false), 3000);
             processesInterval = setInterval(loadProcesses, 5000);
         }
 
@@ -1674,6 +2037,34 @@
                 renderEvents(data.events || []);
             } catch (e) {
                 console.error('事件更新失败:', e);
+            }
+        }
+
+        async function updateNotifications(silentBootstrap = false) {
+            try {
+                const resp = await fetch(`/api/notifications?since_id=${lastNotificationId}&limit=20`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const notifications = data.notifications || [];
+                const latestId = Number(data.latest_id || 0);
+
+                if (silentBootstrap && !notificationsBootstrapped) {
+                    lastNotificationId = latestId;
+                    notificationsBootstrapped = true;
+                    return;
+                }
+
+                notificationsBootstrapped = true;
+                if (notifications.length) {
+                    notifications.forEach((item) => {
+                        showNotification(buildNotificationToast(item), mapNotificationType(item.severity));
+                    });
+                }
+                if (latestId > lastNotificationId) {
+                    lastNotificationId = latestId;
+                }
+            } catch (e) {
+                console.error('通知更新失败:', e);
             }
         }
 
@@ -2155,6 +2546,176 @@
             container.innerHTML = items.map(item => `<span class="result-chip ${cls}">${escapeHtml(item)}</span>`).join('');
         }
 
+        function setText(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = value;
+            }
+        }
+
+        function setValueTone(id, value, tone = '') {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = value;
+            el.className = `value ${tone}`.trim();
+        }
+
+        function toneChip(success, eventType = '') {
+            if (success === true) return { label: '成功', cls: 'chip-green' };
+            if (success === false) return { label: '失败', cls: 'chip-red' };
+            if (eventType === 'danger_lock') return { label: '锁定', cls: 'chip-red' };
+            return { label: '待机', cls: 'chip-muted' };
+        }
+
+        function mapNotificationType(severity) {
+            if (severity === 'critical') return 'critical';
+            if (severity === 'error') return 'error';
+            if (severity === 'warning') return 'warning';
+            return 'info';
+        }
+
+        function buildNotificationToast(item) {
+            const lines = [item.message || '收到新通知'];
+            if (item.state_summary?.arm_state) {
+                lines.push(`状态: ${item.state_summary.arm_state}`);
+            }
+            if (item.details?.safe_window_used) {
+                lines.push(`安全窗口: ${item.details.safe_window_used}`);
+            }
+            return lines.join('\n');
+        }
+
+        function renderThreatRibbon(data, armState) {
+            const ribbon = document.getElementById('heroThreatRibbon');
+            if (!ribbon) return;
+            const badge = document.getElementById('heroThreatBadge');
+            const text = document.getElementById('heroThreatText');
+            let tone = 'idle';
+            let badgeText = 'STANDBY';
+            let copy = '本地控制台已上线，等待保护状态同步。';
+
+            if (armState === 'danger_locked') {
+                tone = 'danger';
+                badgeText = 'DANGER LOCK';
+                copy = '系统已进入危险锁定，当前保持静默安全态，必须显式人工恢复。';
+            } else if (armState === 'armed') {
+                tone = 'armed';
+                badgeText = data.is_protecting ? 'PROTECTING' : 'ARMED';
+                copy = data.is_protecting
+                    ? '检测链路在线，当前具备真实保护能力。'
+                    : '系统已武装，但当前保护条件尚未完全就绪，请关注摄像头/安全窗口可用性。';
+            }
+
+            ribbon.dataset.tone = tone;
+            badge.textContent = badgeText;
+            text.textContent = copy;
+        }
+
+        function renderWatchPanel(data) {
+            const monitoringActive = Boolean(data.monitoring_active);
+            setText('watchMonitoring', monitoringActive ? 'ACTIVE' : 'IDLE');
+            setText('watchMonitoringNote', monitoringActive ? '检测循环正在运行' : '当前未执行实时监控');
+
+            const isLocked = Boolean(data.is_locked);
+            setText('watchLockState', isLocked ? 'MANUAL RECOVER' : 'CLEAR');
+            setText('watchLockNote', isLocked ? '锁定后只能显式 recover' : '当前不处于危险锁定');
+
+            const lastAction = data.last_action_result || {};
+            setText('watchLastAction', lastAction.title || '暂无关键动作');
+            setText('watchLastActionNote', lastAction.message || '等待动作结果');
+
+            const channel = data.notification_channel || {};
+            setText('watchNotifications', `${channel.pending ?? 0} pending`);
+            setText('watchNotificationsNote', `轮询 ${channel.poll_endpoint || '/api/notifications'} · latest ${channel.latest_id ?? 0}`);
+
+            const evidence = data.evidence_policy || {};
+            const sessionPolicy = data.session_policy || {};
+            setText(
+                'statusRuleNote',
+                `轻量观察模式：${evidence.heavy_image_capture ? '允许重度证据' : '默认不保留重度图像证据'}；` +
+                `session-label 仅用于会话隔离=${sessionPolicy.business_state_in_session === false ? '是' : '否'}。`
+            );
+        }
+
+        function renderActionReport(lastAction = {}, timeline = []) {
+            const tone = toneChip(lastAction?.success, lastAction?.event_type);
+            setText('actionReportTitle', lastAction?.title || '尚无关键动作');
+            setText(
+                'actionReportMeta',
+                `${lastAction?.timestamp ? lastAction.timestamp.substring(11, 19) : '--:--:--'} · ${lastAction?.event_type || 'idle'}`
+            );
+            setText('actionReportMessage', lastAction?.message || '系统刚启动，还没有可展示的关键动作结果。');
+
+            const toneEl = document.getElementById('actionReportTone');
+            if (toneEl) {
+                toneEl.className = `result-chip ${tone.cls}`;
+                toneEl.textContent = tone.label;
+            }
+
+            const details = lastAction?.details || {};
+            const chips = [];
+            if (details.safe_window_used) chips.push({ text: `安全窗口 ${details.safe_window_used}`, cls: 'chip-green' });
+            if (Number.isFinite(details.risk_apps_minimized)) chips.push({ text: `最小化 ${details.risk_apps_minimized} 个风险窗口`, cls: 'chip-red' });
+            if (details.timings?.total_ms) chips.push({ text: `总耗时 ${details.timings.total_ms}ms`, cls: 'chip-blue' });
+            if (details.timings?.switch_ms) chips.push({ text: `切换 ${details.timings.switch_ms}ms`, cls: 'chip-blue' });
+            if (details.timings?.minimize_ms) chips.push({ text: `最小化 ${details.timings.minimize_ms}ms`, cls: 'chip-yellow' });
+            const chipsContainer = document.getElementById('actionDetailChips');
+            if (chipsContainer) {
+                chipsContainer.innerHTML = chips.length
+                    ? chips.map((item) => `<span class="result-chip ${item.cls}">${escapeHtml(item.text)}</span>`).join('')
+                    : '<span class="result-chip chip-muted">暂无</span>';
+            }
+
+            const timelineEl = document.getElementById('miniTimeline');
+            if (timelineEl) {
+                if (!timeline.length) {
+                    timelineEl.innerHTML = '<div class="timeline-mini-empty">等待事件...</div>';
+                } else {
+                    timelineEl.innerHTML = timeline.slice(0, 6).map((item) => `
+                        <div class="timeline-mini-item">
+                            <span class="timeline-mini-bullet ${escapeHtml(item.tone || 'info')}"></span>
+                            <div class="timeline-mini-copy">
+                                <div class="timeline-mini-title">${escapeHtml(item.message || item.event_type || '事件')}</div>
+                                <div class="timeline-mini-meta">${escapeHtml((item.timestamp || '').substring(11, 19) || '--:--:--')} · ${escapeHtml(item.event_type || '')}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+
+        function renderRemoteMatrix(matrix = {}) {
+            const renderState = (key) => {
+                const item = matrix?.[key] || {};
+                const allowed = (item.allowed || []).join(' / ') || '无';
+                const blocked = (item.blocked || []).join(' / ') || '无';
+                const notes = (item.notes || []).join('；') || '无';
+                return `<strong>允许</strong>：${escapeHtml(allowed)}<br><strong>阻止</strong>：${escapeHtml(blocked)}<br><strong>说明</strong>：${escapeHtml(notes)}`;
+            };
+            const map = {
+                matrixUnarmed: 'unarmed',
+                matrixArmed: 'armed',
+                matrixDangerLocked: 'danger_locked',
+            };
+            Object.entries(map).forEach(([id, key]) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.innerHTML = renderState(key);
+                }
+            });
+        }
+
+        function renderPolicyNotes(sessionPolicy = {}, notificationChannel = {}) {
+            setText(
+                'sessionPolicyNote',
+                `session / session-label 仅用于会话隔离；business_state_in_session=${sessionPolicy.business_state_in_session === false ? 'false' : 'unknown'}；业务状态来源=${sessionPolicy.business_state_source || 'local_engine_runtime'}。`
+            );
+            setText(
+                'notificationChannelNote',
+                `通知轮询端点：${notificationChannel.poll_endpoint || '/api/notifications'}；即时推送事件：${(notificationChannel.supported_immediate_events || []).join(' / ') || '无'}；仅查询事件：${(notificationChannel.query_only_events || []).join(' / ') || '无'}。`
+            );
+        }
+
         function renderStatus(data) {
             const armState = data.arm_state;
             const config = STATE_CONFIG[armState] || STATE_CONFIG.unarmed;
@@ -2163,6 +2724,7 @@
             const icon = document.getElementById('statusIcon');
             const label = document.getElementById('statusLabel');
 
+            document.body.dataset.threatState = armState;
             circle.className = 'status-circle ' + config.class;
             icon.textContent = config.icon;
             label.textContent = config.label;
@@ -2183,35 +2745,37 @@
             document.getElementById('testActionBtn').disabled = !data.action_chain_available;
 
             const recIndicator = document.getElementById('recIndicator');
-            recIndicator.style.display = armState === 'armed' ? 'flex' : 'none';
+            recIndicator.style.display = data.monitoring_active ? 'flex' : 'none';
 
-            document.getElementById('infoArmState').textContent = config.label;
-            document.getElementById('infoArmState').className = 'value ' + (armState === 'armed' ? 'yes' : armState === 'danger_locked' ? 'no' : '');
-            document.getElementById('infoAlertPhase').textContent = ALERT_CONFIG[data.alert_phase] || '无';
-            document.getElementById('infoCamera').textContent = data.camera_available ? '✅ 可用' : '❌ 不可用';
-            document.getElementById('infoCamera').className = 'value ' + (data.camera_available ? 'yes' : 'no');
-            document.getElementById('infoSafeWindow').textContent = data.safe_window_available ? '✅ 可用' : '❌ 不可用';
-            document.getElementById('infoSafeWindow').className = 'value ' + (data.safe_window_available ? 'yes' : 'no');
-            document.getElementById('infoActionChain').textContent = data.action_chain_available ? '✅ 可用' : '❌ 不可用';
-            document.getElementById('infoActionChain').className = 'value ' + (data.action_chain_available ? 'yes' : 'no');
-            document.getElementById('infoLastEvent').textContent = data.last_event_message || '-';
+            setValueTone('infoArmState', config.label, armState === 'armed' ? 'yes' : armState === 'danger_locked' ? 'no' : '');
+            setValueTone('infoMonitoring', data.monitoring_active ? '✅ 运行中' : '⚪ 待机', data.monitoring_active ? 'yes' : '');
+            setValueTone('infoLockState', data.is_locked ? '🔴 已锁定' : '⚪ 未锁定', data.is_locked ? 'no' : '');
+            setText('infoAlertPhase', ALERT_CONFIG[data.alert_phase] || '无');
+            setValueTone('infoCamera', data.camera_available ? '✅ 可用' : '❌ 不可用', data.camera_available ? 'yes' : 'no');
+            setValueTone('infoSafeWindow', data.safe_window_available ? '✅ 可用' : '❌ 不可用', data.safe_window_available ? 'yes' : 'no');
+            setValueTone('infoActionChain', data.action_chain_available ? '✅ 可用' : '❌ 不可用', data.action_chain_available ? 'yes' : 'no');
+            setText('infoLastAction', data.last_action_result?.title || '-');
+            setText('infoLastEvent', data.last_event_message || '-');
 
-            document.getElementById('summaryProtecting').textContent = data.is_protecting ? 'ACTIVE / 已保护' : 'IDLE / 未保护';
-            document.getElementById('summaryAlert').textContent = ALERT_CONFIG[data.alert_phase] || '无';
-            document.getElementById('summaryCameraRuntime').textContent = data.camera_runtime_status?.runtime_available ? 'ONLINE' : 'OFFLINE';
-            document.getElementById('cameraBadge').textContent = `CAM-${String((data.camera_runtime_status?.backend || '01')).replace('CAP_', '')}`;
+            setText('summaryProtecting', data.is_protecting ? 'ACTIVE / 已保护' : data.monitoring_active ? 'WATCHING / 监控中' : 'IDLE / 未保护');
+            setText('summaryAlert', ALERT_CONFIG[data.alert_phase] || '无');
+            setText('summaryCameraRuntime', data.camera_runtime_status?.runtime_available ? 'ONLINE' : 'OFFLINE');
+            setText('cameraBadge', `CAM-${String((data.camera_runtime_status?.backend || '01')).replace('CAP_', '')}`);
 
-            document.getElementById('heroProtectionState').textContent = data.is_protecting
-                ? '实时保护中'
-                : armState === 'danger_locked'
-                    ? '危险锁定中'
-                    : armState === 'armed'
-                        ? '已武装，等待触发'
-                        : '未武装';
-            document.getElementById('heroPrimaryTarget').textContent = data.primary_safe_app || '-';
-            document.getElementById('heroRiskAppCount').textContent = `${(data.risk_apps || []).length} 项`;
+            setText('heroProtectionState', data.observability?.protection_label || (data.is_protecting ? '实时保护中' : '未武装'));
+            setText('heroPrimaryTarget', data.primary_safe_app || '-');
+            setText('heroRiskAppCount', `${(data.risk_apps || []).length} 项`);
+            setText('heroMonitoringState', data.monitoring_active ? '检测循环活跃' : data.is_locked ? '锁定后停止监听' : '当前待机');
+            setText('heroLastAction', data.last_action_result?.title || '暂无关键动作');
+            setText('heroNotificationState', `${data.notification_channel?.pending ?? 0} 条待处理 / latest ${data.notification_channel?.latest_id ?? 0}`);
 
-            const desiredVideoMode = armState === 'armed' ? 'stream' : 'frame';
+            renderThreatRibbon(data, armState);
+            renderWatchPanel(data);
+            renderActionReport(data.last_action_result || {}, data.timeline || []);
+            renderRemoteMatrix(data.remote_action_matrix || {});
+            renderPolicyNotes(data.session_policy || {}, data.notification_channel || {});
+
+            const desiredVideoMode = data.monitoring_active ? 'stream' : 'frame';
             if (desiredVideoMode !== currentVideoMode) {
                 document.getElementById('videoStream').src = desiredVideoMode === 'stream' ? '/api/stream' : '/api/frame';
                 currentVideoMode = desiredVideoMode;

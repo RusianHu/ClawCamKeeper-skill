@@ -92,6 +92,81 @@ def create_app(engine: MonitorEngine, config_path: Optional[str] = None) -> Fast
             },
         )
 
+    @app.get("/api/notifications")
+    async def api_notifications(since_id: int = 0, limit: int = 20):
+        """获取轻量通知队列（供 WebUI / OpenClaw 轮询）"""
+        started_at = time.perf_counter()
+        notifications = engine.get_notifications(since_id=since_id, limit=limit)
+        latest_id = notifications[-1]["id"] if notifications else since_id
+        return _with_meta(
+            {
+                "notifications": notifications,
+                "since_id": since_id,
+                "latest_id": latest_id,
+            },
+            "/api/notifications",
+            started_at,
+            {
+                "since_id": since_id,
+                "limit": limit,
+                "count": len(notifications),
+            },
+        )
+
+    @app.get("/api/openclaw/notification-context")
+    async def api_get_openclaw_notification_context():
+        """查询当前 OpenClaw 主动通知上下文。"""
+        started_at = time.perf_counter()
+        context = engine.get_openclaw_notification_context()
+        dispatch = engine.get_notification_dispatch_status()
+        return _with_meta(
+            {
+                "success": True,
+                "context": context,
+                "dispatch": dispatch,
+            },
+            "/api/openclaw/notification-context",
+            started_at,
+            {
+                "context_active": bool(context.get("active")),
+            },
+        )
+
+    @app.post("/api/openclaw/notification-context")
+    async def api_register_openclaw_notification_context(request: Request):
+        """注册当前 OpenClaw 会话/渠道上下文，供后续预警主动回推。"""
+        started_at = time.perf_counter()
+        try:
+            payload = await request.json()
+            context_payload = payload.get("context", payload)
+            context = engine.register_openclaw_notification_context(context_payload)
+            dispatch = engine.get_notification_dispatch_status()
+            return _with_meta(
+                {
+                    "success": True,
+                    "message": "OpenClaw 通知上下文已注册",
+                    "context": context,
+                    "dispatch": dispatch,
+                },
+                "/api/openclaw/notification-context",
+                started_at,
+                {
+                    "context_active": bool(context.get("active")),
+                },
+            )
+        except Exception as exc:
+            return JSONResponse(
+                status_code=400,
+                content=_with_meta(
+                    {
+                        "success": False,
+                        "error": f"注册 OpenClaw 通知上下文失败: {exc}",
+                    },
+                    "/api/openclaw/notification-context",
+                    started_at,
+                ),
+            )
+
     @app.get("/api/processes")
     async def api_get_processes(search: str = ""):
         """获取系统进程列表，支持搜索过滤"""

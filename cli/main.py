@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.config_manager import load_config, resolve_config_path, save_config
 from core.engine import MonitorEngine
+from cli.openclaw_bridge import openclaw_bridge
 
 
 # 默认配置路径
@@ -259,6 +260,34 @@ def format_events(events: list, json_output: bool = False):
     click.echo(f"{'=' * 60}\n")
 
 
+def format_notifications(payload: dict, json_output: bool = False):
+    """格式化轻量通知输出"""
+    if json_output:
+        click.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+
+    notifications = payload.get("notifications", []) if isinstance(payload, dict) else []
+    latest_id = payload.get("latest_id", 0) if isinstance(payload, dict) else 0
+    since_id = payload.get("since_id", 0) if isinstance(payload, dict) else 0
+
+    click.echo(f"\n{'=' * 60}")
+    click.echo("  ClawCamKeeper 轻量通知")
+    click.echo(f"{'=' * 60}")
+    click.echo(f"  since_id: {since_id} | latest_id: {latest_id} | count: {len(notifications)}")
+
+    if not notifications:
+        click.echo("  暂无新增通知")
+    else:
+        for item in notifications:
+            ts = item.get("timestamp", "")[:19]
+            severity = item.get("severity", "info")
+            etype = item.get("event_type", "")
+            msg = item.get("message", "")
+            click.echo(f"  [{ts}] ({severity}) {etype}: {msg}")
+
+    click.echo(f"{'=' * 60}\n")
+
+
 @click.group()
 @click.option("--config", "-c", default=None, help="配置文件路径")
 @click.pass_context
@@ -320,6 +349,28 @@ def events(ctx, json_output, limit):
     if success:
         payload = data.get("events", []) if isinstance(data, dict) else []
         format_events(payload, json_output)
+        if not json_output:
+            print_perf_summary(data)
+    else:
+        if json_output:
+            click.echo(json.dumps({"error": data.get("error", "未知错误"), "cli_perf": data.get("cli_perf", {})}, indent=2, ensure_ascii=False))
+        else:
+            click.echo(f"❌ {data.get('error', '未知错误')}")
+            print_perf_summary(data)
+        ctx.exit(1)
+
+
+@cli.command()
+@click.option("--json", "-j", "json_output", is_flag=True, help="JSON 格式输出")
+@click.option("--since-id", default=0, type=int, show_default=True, help="仅返回大于该 ID 的通知")
+@click.option("--limit", "-l", default=20, type=int, show_default=True, help="返回通知数量")
+@click.pass_context
+def notifications(ctx, json_output, since_id, limit):
+    """查看轻量通知队列"""
+    config_path = ctx.obj.get("config_path")
+    success, data = api_request("GET", f"/notifications?since_id={since_id}&limit={limit}", config_path=config_path)
+    if success:
+        format_notifications(data, json_output)
         if not json_output:
             print_perf_summary(data)
     else:
@@ -586,6 +637,116 @@ def config_show(ctx, json_output):
         click.echo(f"  完全报警帧数: {det.get('full_alert_frames', 30)}")
         click.echo(f"  读取耗时: {total_ms}ms")
         click.echo(f"{'=' * 40}\n")
+
+
+@cli.command("config-reload")
+@click.option("--json", "-j", "json_output", is_flag=True, help="JSON 格式输出")
+@click.pass_context
+def config_reload(ctx, json_output):
+    """请求运行中的本地服务从磁盘重载配置"""
+    config_path = ctx.obj.get("config_path")
+    success, data = api_request("POST", "/config/reload", config_path=config_path, timeout=15)
+    if success:
+        if json_output:
+            click.echo(json.dumps(data, indent=2, ensure_ascii=False))
+        else:
+            click.echo("✅ 配置已从磁盘重载")
+            changed_keys = data.get("changed_keys", []) if isinstance(data, dict) else []
+            if changed_keys:
+                click.echo(f"   变更键: {', '.join(changed_keys)}")
+            print_perf_summary(data)
+    else:
+        if json_output:
+            click.echo(json.dumps({"error": data.get("error", "未知错误"), "cli_perf": data.get("cli_perf", {})}, indent=2, ensure_ascii=False))
+        else:
+            click.echo(f"❌ {data.get('error', '未知错误')}")
+            print_perf_summary(data)
+        ctx.exit(1)
+
+
+@cli.command("openclaw-context")
+@click.option("--json", "-j", "json_output", is_flag=True, help="JSON 格式输出")
+@click.option("--session-key", default=None, help="OpenClaw session key")
+@click.option("--session-label", default=None, help="OpenClaw session label")
+@click.option("--channel", default=None, help="OpenClaw channel，如 qqbot / feishu")
+@click.option("--target", default=None, help="OpenClaw channel target")
+@click.option("--account", default=None, help="OpenClaw channel account")
+@click.option("--source", default="openclaw_bridge", show_default=True, help="上下文来源标记")
+@click.pass_context
+def openclaw_context(ctx, json_output, session_key, session_label, channel, target, account, source):
+    """注册当前 OpenClaw 主动通知上下文"""
+    config_path = ctx.obj.get("config_path")
+    payload = {
+        "context": {
+            "session_key": session_key,
+            "session_label": session_label,
+            "channel": channel,
+            "target": target,
+            "account": account,
+            "source": source,
+        }
+    }
+    success, data = api_request(
+        "POST",
+        "/openclaw/notification-context",
+        data=payload,
+        timeout=10,
+        config_path=config_path,
+    )
+    if success:
+        if json_output:
+            click.echo(json.dumps(data, indent=2, ensure_ascii=False))
+        else:
+            context = data.get("context", {}) if isinstance(data, dict) else {}
+            click.echo("✅ OpenClaw 通知上下文已注册")
+            click.echo(
+                f"   channel={context.get('channel') or '-'} | target={context.get('target') or '-'} | "
+                f"session_key={context.get('session_key') or '-'} | session_label={context.get('session_label') or '-'}"
+            )
+            print_perf_summary(data)
+    else:
+        if json_output:
+            click.echo(json.dumps({"error": data.get("error", "未知错误"), "cli_perf": data.get("cli_perf", {})}, indent=2, ensure_ascii=False))
+        else:
+            click.echo(f"❌ {data.get('error', '未知错误')}")
+            print_perf_summary(data)
+        ctx.exit(1)
+
+
+@cli.command("openclaw-context-show")
+@click.option("--json", "-j", "json_output", is_flag=True, help="JSON 格式输出")
+@click.pass_context
+def openclaw_context_show(ctx, json_output):
+    """查看当前 OpenClaw 主动通知上下文"""
+    config_path = ctx.obj.get("config_path")
+    success, data = api_request("GET", "/openclaw/notification-context", timeout=10, config_path=config_path)
+    if success:
+        if json_output:
+            click.echo(json.dumps(data, indent=2, ensure_ascii=False))
+        else:
+            context = data.get("context", {}) if isinstance(data, dict) else {}
+            dispatch = data.get("dispatch", {}) if isinstance(data, dict) else {}
+            click.echo("✅ OpenClaw 通知上下文")
+            click.echo(
+                f"   active={context.get('active')} | channel={context.get('channel') or '-'} | target={context.get('target') or '-'}"
+            )
+            click.echo(
+                f"   session_key={context.get('session_key') or '-'} | session_label={context.get('session_label') or '-'}"
+            )
+            click.echo(
+                f"   last_dispatch={dispatch.get('status') or '-'} | message={dispatch.get('message') or '-'}"
+            )
+            print_perf_summary(data)
+    else:
+        if json_output:
+            click.echo(json.dumps({"error": data.get("error", "未知错误"), "cli_perf": data.get("cli_perf", {})}, indent=2, ensure_ascii=False))
+        else:
+            click.echo(f"❌ {data.get('error', '未知错误')}")
+            print_perf_summary(data)
+        ctx.exit(1)
+
+
+cli.add_command(openclaw_bridge)
 
 
 if __name__ == "__main__":

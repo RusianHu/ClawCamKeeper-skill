@@ -28,22 +28,5 @@ safe_window:
 webui:
   debug: false
   host: 127.0.0.1
-  port: 8765
-openclaw:
-  notifications:
-    enabled: false
-    command: openclaw
-    timeout_seconds: 8
-    context_ttl_seconds: 900
-    message_prefix: "[ClawCamKeeper]"
-    routes:
-      qqbot:
-        target: ""
-        account: ""
-      feishu:
-        target: ""
-        account: ""
-    fallback:
-      channel: ""
-      target: ""
-      account: ""
+  port: 8876
+
