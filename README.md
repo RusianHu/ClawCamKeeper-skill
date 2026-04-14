@@ -279,6 +279,10 @@ openclaw:
 - `fallback` 用于当前没有活动上下文时的兜底路由
 - `session_key / session_label` 不建议写入配置文件，应由运行时 `openclaw-context` 注册
 - 最近一次上下文与分发结果可从 `openclaw-context-show` / `status.notification_channel` 查看
+- **分发到 GitHub 的仓库应保持 `config/settings.yaml` 为通用安全默认值**，不要写入自己的 `qqbot:c2c:...`、群号、open_id、account 或其他本机专用路由
+- 推荐做法是：
+  - 仓库里的 `settings.yaml` 只保留空白 / 占位的 `routes` 与 `fallback`
+  - 使用者分发后再按自己环境填写，或直接在运行时执行 `python .\main.py openclaw-context --channel <channel> --target <target> --account <account>` 注册当前会话上下文
 
 ## 常见问题
 
