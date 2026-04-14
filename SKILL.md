@@ -1,133 +1,161 @@
 ---
 name: clawcamkeeper-openclaw
-description: 当用户想安装、启动、查询、调试或远程控制 ClawCamKeeper 时使用。适用于“帮我安装这个 GitHub skill、启动本地防护服务、查看当前保护状态、健康检查、远程武装、解除武装、手动恢复、查看配置、修改主备安全窗口、查看事件、查看通知、测试动作链”等请求。只要任务涉及这个仓库本身或其 OpenClaw 接入，就应优先使用本技能。
+description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenClaw 接入、工位防护、危险锁定、安全窗口、告警回推、QQ/Feishu 通知、动作链测试、继续昨天的 ClawCamKeeper 调试、或者要求安装/启动/排障/修改这个项目时，必须优先使用本技能。适用于安装 skill、启动本地服务、查看状态、健康检查、武装/解除武装/恢复、修改主备安全窗口、查看事件与通知、验证消息回推链路、排查端口占用/旧进程/上下文未注册等问题。
 ---
 
-# ClawCamKeeper OpenClaw 自包含技能仓库
+# ClawCamKeeper OpenClaw Skill
 
-这个仓库本身就是一个 **self-contained skill repository**。
+这个 skill 用来操作和排查 **ClawCamKeeper 自包含仓库**。当前包含本文件的目录就是项目根目录，不要再假定外面还有一个“真正源码目录”。
 
-如果它被 OpenClaw 或其他 agent 工具直接克隆到 skill 工作区，那么**当前包含本文件的目录就是项目根目录**，而不是某个外部源码目录的代理壳。
+## 先做什么
 
-## 仓库根定位
+第一次接手时，不要一上来讨论 ACP、WebUI 交互或 Core 细节。先按这个顺序：
 
-优先用以下事实确认项目根：
+1. **确认项目根目录**
+   - 当前目录应包含 `SKILL.md`、`main.py`、`requirements.txt`、`cli/`、`core/`、`webui/`
+2. **确认本地服务是否在线**
+   - 先跑 `python .\main.py openclaw status`
+   - 若报 `service_unavailable` / `WinError 10061`，说明服务未启动或端口不可达
+3. **必要时启动服务**
+   - `python .\main.py run`
+4. **再做诊断**
+   - `python .\main.py openclaw doctor`
+   - `python .\main.py openclaw action-test --full-check`（仅在需要动作链实测时）
 
-1. 当前目录包含 [`SKILL.md`](SKILL.md)
-2. 当前目录同时包含 [`main.py`](main.py)、[`requirements.txt`](requirements.txt)、[`cli/`](cli/__init__.py)、[`core/`](core/__init__.py)、[`webui/`](webui/app.py)
-3. 如果存在 [`scripts/invoke-clawcamkeeper-openclaw.ps1`](scripts/invoke-clawcamkeeper-openclaw.ps1)，优先通过它调用，因为它会稳定切回仓库根目录执行命令
+先把服务、状态、动作链搞清楚，再进入更细的通知链或配置问题。
 
-不要再假定需要跳回某个“原始开发仓库路径”；对于分发场景，这个 skill 仓库自身就应该是运行载体。
+## 稳定边界
 
-## 核心原则
+- **唯一稳定自动化边界 = CLI JSON 输出**
+- 优先使用：`python .\main.py openclaw ...`
+- 不要直接操作 `core/` 内部对象
+- 不要把 WebUI 页面点击当成自动化主路径
+- 读取结果时优先看：`ok`、`message`、`data`、`timings`、`state_snapshot`、`error_type`、`debug`
 
-1. 始终通过项目提供的 CLI / bridge 调用，不直接操作 [`core/`](core/__init__.py) 内部对象。
-2. 优先使用 [`scripts/invoke-clawcamkeeper-openclaw.ps1`](scripts/invoke-clawcamkeeper-openclaw.ps1)；若确认当前就在仓库根目录，也可以直接用 [`python .\main.py openclaw ...`](main.py:14)。
-3. 始终依赖 JSON 输出，不要解析人类可读文本。
-4. 优先把返回结果中的 [`ok`](cli/openclaw_bridge.py:139)、[`message`](cli/openclaw_bridge.py:170)、[`data`](cli/openclaw_bridge.py:143)、[`timings`](cli/openclaw_bridge.py:147)、[`state_snapshot`](cli/openclaw_bridge.py:288) 作为主依据。
-5. 如果调用失败，优先查看 [`error_type`](cli/openclaw_bridge.py:153) 与 [`debug`](cli/openclaw_bridge.py:249)。
-6. 危险锁定状态下，不要擅自假定可以通过配置修改解除锁定；恢复只能显式调用 [`recover()`](cli/openclaw_bridge.py:343)。
-7. [`session_policy`](core/engine.py:202) 表明 `session-label` 只用于会话隔离，不承载业务状态；任何武装、锁定、恢复判断都必须回到 [`status()`](cli/openclaw_bridge.py:280) 或返回内的 `state_snapshot` 确认。
-8. 如果用户要看最近关键动作或锁定提示，优先使用 [`notifications()`](cli/openclaw_bridge.py:400)；不要把通知队列误当成完整历史，完整回放仍以 [`events()`](cli/openclaw_bridge.py:376) 为准。
+如果有包装脚本 `scripts/invoke-clawcamkeeper-openclaw.ps1`，可以优先用它；但确认在仓库根目录时，直接 `python .\main.py openclaw ...` 也可以。
 
-## 首次安装 / 启动检查
+## 30 秒分流
 
-如果仓库刚被克隆到 skill 工作区，先检查：
-
-1. Python 是否可用
-2. 依赖是否已按 [`requirements.txt`](requirements.txt) 安装
-3. 默认配置 [`config/settings.yaml`](config/settings.yaml) 是否存在
-4. 本地服务是否已通过 [`run()`](cli/main.py:489) 启动
-
-典型准备步骤：
-
-- 安装依赖：`python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`
-- 启动服务：`python .\main.py run`
-
-## 调用入口选择
-
-- **优先入口**：`powershell -ExecutionPolicy Bypass -File .\scripts\invoke-clawcamkeeper-openclaw.ps1 ...`
-- **确认位于仓库根目录时**：可直接使用 [`python .\main.py openclaw ...`](main.py:14)
-- 如果当前目录不含 [`main.py`](main.py) 或 [`requirements.txt`](requirements.txt)，不要盲调命令，先定位到 skill 仓库根目录
-
-## 可用命令
-
-### 只读查询
-
-- 状态：`python .\main.py openclaw status`
-- 健康检查：`python .\main.py openclaw doctor`
-- 配置查看：`python .\main.py openclaw config-show`
-- 事件查看：`python .\main.py openclaw events --limit 10`
-- 通知查看：`python .\main.py openclaw notifications --since-id 0 --limit 10`
-
-### 写操作
-
-- 武装：`python .\main.py openclaw arm`
-- 解除武装：`python .\main.py openclaw disarm`
-- 恢复：`python .\main.py openclaw recover`
-- 修改安全窗口：`python .\main.py openclaw set-safe-window --primary Weixin.exe --backup calc.exe`
-
-### 联调辅助
-
-- 快速动作测试：`python .\main.py openclaw action-test`
-- 完整动作测试：`python .\main.py openclaw action-test --full-check`
-
-## 推荐工作流
-
-### 1. 用户要查看当前保护状态
-
+### 1) 用户要看当前保护状态
 按顺序：
+- `python .\main.py openclaw status`
+- 提炼 `arm_state`、`is_locked`、`camera_available`、`safe_window_available`、`action_chain_available`
+- 汇报是否具备真实保护能力
 
-1. 运行 `python .\main.py openclaw status`
-2. 提炼 `arm_state`、`is_locked`、`camera_available`、`safe_window_available`、`action_chain_available`
-3. 简洁汇报当前是否具备真实保护能力
-
-### 2. 用户要远程控制开关
-
-- 武装前如有疑问，先执行 `python .\main.py openclaw doctor`
-- 执行 `arm` / `disarm`
-- 必须读取返回中的 `state_snapshot` 来确认结果是否真正生效
-
-### 3. 用户要修改安全窗口
-
-- 使用 `python .\main.py openclaw set-safe-window --primary <主> --backup <备>`
-- 重点检查返回中的：
-  - `data.config_set`
-  - `data.config_reload`
-  - `state_snapshot.primary_safe_app`
-  - `state_snapshot.backup_safe_app`
-- 如果 `config_set` 成功但 `config_reload` 失败，应明确说明“配置已落盘，但运行中的本地服务未热加载成功”
-
-### 4. 用户要诊断为什么不能救场
-
-优先顺序：
-
-1. `python .\main.py openclaw doctor`
-2. `python .\main.py openclaw action-test`
-3. 必要时 `python .\main.py openclaw action-test --full-check`
-4. 结合 [`timings`](cli/openclaw_bridge.py:147)、[`cli_perf`](cli/main.py:42)、[`meta.perf`](webui/app.py:33) 判断是请求层、可用性探测还是动作链本身的问题
-
-### 5. 用户要看最近关键动作 / 锁定提醒 / 恢复提示
-
+### 2) 用户要远程控制
 按顺序：
+- 先 `python .\main.py openclaw doctor`
+- 再 `arm` / `disarm` / `recover`
+- **必须**回读 `state_snapshot` 或再次 `status` 确认是否真的生效
 
-1. 先运行 `python .\main.py openclaw notifications --since-id 0 --limit 10`
-2. 重点提炼 `data.notifications[*].event_type`、`message`、`state_summary`、`timings`
-3. 如果需要完整时间线，再补 `python .\main.py openclaw events --limit 10`
-4. 若通知里出现“需人工恢复”或 `danger_lock`，必须再读一次 `python .\main.py openclaw status`，确认当前是否仍为锁定态
+### 3) 用户要排查“为什么不能救场”
+按顺序：
+- `python .\main.py openclaw doctor`
+- `python .\main.py openclaw action-test`
+- 必要时 `python .\main.py openclaw action-test --full-check`
+- 判断是服务问题、摄像头问题、安全窗口问题，还是动作链问题
 
-## 失败处理规则
+### 4) 用户要看最近关键动作/锁定提醒
+按顺序：
+- `python .\main.py openclaw notifications --since-id 0 --limit 10`
+- 如果需要完整时间线，再补 `python .\main.py openclaw events --limit 10`
+- 如果出现 `danger_lock`，必须再读一次 `status`
 
-- `error_type=service_unavailable`：通常表示本地 [`run()`](cli/main.py:489) 服务未运行或 Web API 不可达，应先恢复本地服务。
-- `error_type=timeout`：说明调用超时，先保留现场，不要重复连发写操作。
-- `error_type=invalid_arguments`：说明参数不完整或格式错误，先修正参数。
-- 若写操作失败且没有明确状态快照，默认视为“未确认生效”，不要向用户声称已经切换成功。
+### 5) 用户要改安全窗口
+按顺序：
+- `python .\main.py openclaw set-safe-window --primary <主> --backup <备>`
+- 检查 `data.config_set`、`data.config_reload`
+- 检查 `state_snapshot.primary_safe_app`、`state_snapshot.backup_safe_app`
+- 若保存成功但热加载失败，要明确说明“配置已落盘，但运行中的服务未热加载成功”
+
+## 通知链规则
+
+这是最容易绕弯的地方，直接记结论：
+
+- **危险告警主路径不是 ACP**
+- **QQBot 场景优先走直连 HTTP 发送**
+- OpenClaw CLI 消息发送是兜底路径，不是 QQ 的首选低延迟路径
+- ACP 更适合“把复杂 agent 工作送回某会话继续聊”，不适合危险告警主链路
+
+### 当前通知链的正确理解
+
+1. 运行中的本地服务会保存最近一次通知上下文：`session_key / session_label / channel / target / account`
+2. 通过 `python .\main.py openclaw-context ...` 或 bridge 自动注册上下文
+3. 危险事件进入通知队列后：
+   - **QQBot**：优先直连 QQ HTTP API 发送
+   - 若直连失败：退回 OpenClaw CLI 消息发送兜底
+   - 其他渠道：默认走 OpenClaw CLI 发送
+
+### 做回推联调时的顺序
+
+1. 启动服务：`python .\main.py run`
+2. 注册上下文：`python .\main.py openclaw-context --channel <channel> --target <target> --account <account>`
+3. 确认上下文：`python .\main.py openclaw notification-context`
+4. 武装：`python .\main.py openclaw arm`
+5. 人工触发告警
+6. 检查渠道是否收到主动提醒
+7. 必要时再查 `notifications` / `events` / `status.notification_channel`
+
+## 常见坑
+
+### 服务没起来
+症状：
+- `service_unavailable`
+- `WinError 10061`
+
+处理：
+- 先启动 `python .\main.py run`
+- 不要在服务没起来时连续重试写操作
+
+### 8765 端口被旧实例占用
+症状：
+- 新服务启动日志里出现 bind 失败
+- 看起来启动了，但实际跑的是旧代码
+
+处理：
+- 先找占用 8765 的旧进程
+- 清掉旧进程后再启动新实例
+- 否则你以为在测新代码，实际测的是旧版本
+
+### 通知上下文为空
+症状：
+- 告警能进本地通知队列，但发不回当前聊天
+
+处理：
+- 先注册 `openclaw-context`
+- 再做告警联调
+
+### 主安全窗口不可用
+症状：
+- 动作链看起来异常
+- 其实只是 `Weixin.exe` 没打开或不可启动
+
+处理：
+- 先确认主安全窗口是否真实可用
+- 必要时允许回退到备选窗口
+- 不要把“主窗口不可用”和“整个动作链坏了”混为一谈
+
+## 危险锁定语义
+
+- 危险锁定后不要默认帮用户解除
+- 恢复只能显式调用 `recover`
+- `session-label` 只做会话隔离，不承载业务状态
+- 武装/锁定/恢复判断必须回到 `status` 或 `state_snapshot`
 
 ## 输出要求
 
 向用户汇报时：
 
-1. 先给结果结论。
-2. 再给关键状态字段。
-3. 最后给必要的耗时或错误原因。
-4. 不要把整个 JSON 原样倾倒给用户，除非对方明确要求原始结果。
+1. 先给结论
+2. 再给关键状态字段
+3. 最后给耗时或错误原因
+4. 不要整段倾倒 JSON，除非用户明确要原始结果
+
+## 附加文档
+
+当任务更复杂时，再读：
+
+- `README.md`：项目总览与运行说明
+- `docs/NOTIFICATION-FLOW.md`：主动通知回推设计与联调顺序
+- `docs/TROUBLESHOOTING.md`：端口占用、服务不可达、上下文未注册等故障处理
+- `AGENTS.md`：仓库内部约束与行为边界

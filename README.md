@@ -12,20 +12,20 @@
 - 危险成立后自动切换到安全窗口并最小化风险程序
 - WebUI 状态面板、配置编辑、热加载
 - CLI 控制与调试
-- OpenClaw / ACP 薄适配层
+- OpenClaw / bridge 机器可读适配层
 - 通知队列、最近动作结果、时间线、远程动作矩阵
 
 ## 仓库结构
 
 - [`main.py`](main.py) —— 项目入口
 - [`cli/main.py`](cli/main.py) —— CLI 与本地服务入口
-- [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py) —— OpenClaw / ACP 机器可读桥接层
+- [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py) —— OpenClaw 机器可读桥接层
 - [`core/`](core/__init__.py) —— 状态机、检测、动作链、配置热加载
 - [`webui/app.py`](webui/app.py) —— FastAPI WebUI
-- [`SKILL.md`](SKILL.md) —— 仓库根 skill 入口，供 OpenClaw / agent 直接识别整个仓库
-- [`skills/clawcamkeeper-openclaw/SKILL.md`](skills/clawcamkeeper-openclaw/SKILL.md) —— 兼容保留的子目录技能说明
-- [`scripts/install_openclaw_skill.ps1`](scripts/install_openclaw_skill.ps1) —— 把整个仓库同步到 OpenClaw workspace skill 目录
-- [`scripts/test_openclaw_bridge.ps1`](scripts/test_openclaw_bridge.ps1) —— bridge 回归脚本
+- [`SKILL.md`](SKILL.md) —— OpenClaw skill 入口
+- [`AGENTS.md`](AGENTS.md) —— 仓库内部约束与工作准则
+- [`docs/NOTIFICATION-FLOW.md`](docs/NOTIFICATION-FLOW.md) —— 主动通知回推链路说明
+- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) —— 常见故障排查
 
 ## 运行环境
 
@@ -62,7 +62,7 @@ python .\main.py run
 
 WebUI 默认地址：
 
-- [`http://127.0.0.1:8765`](http://127.0.0.1:8765)
+- <http://127.0.0.1:8765>
 
 ## 常用本地 CLI
 
@@ -91,43 +91,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install_openclaw_skill.ps1
 
 - `C:\Users\你的用户名\.openclaw\workspace\skills\clawcamkeeper-openclaw`
 
-同步后的 skill 目录将包含：
-
-- 仓库根 [`SKILL.md`](SKILL.md)
-- [`main.py`](main.py)
-- [`requirements.txt`](requirements.txt)
-- [`cli/`](cli/__init__.py)
-- [`core/`](core/__init__.py)
-- [`webui/`](webui/app.py)
-- [`config/`](config/settings.yaml)
-- [`scripts/`](scripts/install_openclaw_skill.ps1)
-- 以及安装时生成的 `skill-install.json`
-
-也就是说，**OpenClaw skill 工作区里的这个目录本身，就是完整可运行的项目副本**，而不是依赖外部开发目录的轻量壳。
-
-## 安装后如何稳定调用
-
-安装完成后，可以直接把 OpenClaw skill 目录视为项目根目录。
-
-典型调用方式：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\你的用户名\.openclaw\workspace\skills\clawcamkeeper-openclaw\scripts\invoke-clawcamkeeper-openclaw.ps1 status
-powershell -ExecutionPolicy Bypass -File C:\Users\你的用户名\.openclaw\workspace\skills\clawcamkeeper-openclaw\scripts\invoke-clawcamkeeper-openclaw.ps1 doctor
-powershell -ExecutionPolicy Bypass -File C:\Users\你的用户名\.openclaw\workspace\skills\clawcamkeeper-openclaw\scripts\invoke-clawcamkeeper-openclaw.ps1 notifications --since-id 0 --limit 10
-powershell -ExecutionPolicy Bypass -File C:\Users\你的用户名\.openclaw\workspace\skills\clawcamkeeper-openclaw\scripts\invoke-clawcamkeeper-openclaw.ps1 arm
-```
-
-或者直接进入该目录后执行：
-
-```powershell
-python .\main.py run
-python .\main.py openclaw status
-```
+也就是说，OpenClaw skill 工作区里的这个目录本身，就是完整可运行的项目副本，而不是只复制一个轻量 skill 壳。
 
 ## OpenClaw 远程能力面
 
-当前已对接的首批能力：
+当前已对接的能力：
 
 - `status`
 - `doctor`
@@ -143,23 +111,41 @@ python .\main.py openclaw status
 
 OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py)。
 
-### 主动通知回推
+## 主动通知回推
 
-当前版本不仅支持轮询 [`/api/notifications`](webui/app.py:95)，还支持在关键事件发生后主动调用 [`openclaw message send`](AGENTS.md) 进行回推。
+### 设计结论
 
-关键点：
+当前版本同时支持：
 
-- 运行中的本地服务会保存最近一次 OpenClaw 会话上下文：`session_key / session_label / channel / target / account`
-- OpenClaw bridge 每次远程调用时，会先尝试通过 [`openclaw-context`](cli/main.py:667) 把当前上下文注册进本地服务
-- 当 [`danger_lock`](core/engine.py:699)、[`action_failure`](core/engine.py:710)、[`recover`](core/engine.py:518)、[`arm`](core/engine.py:481)、[`disarm`](core/engine.py:507)、[`camera_failure`](core/engine.py:607) 等事件进入 [`_queue_notification()`](core/engine.py:573) 后，会继续进入主动分发逻辑
-- 分发命令最终落到 [`subprocess.run()`](core/engine.py:519) 调用的 `openclaw message send --channel ... --target ... --message ...`
+- 轮询 `/api/notifications`
+- 关键事件发生后的主动回推
 
-建议联调顺序：
+但要注意：
 
-1. 启动本地服务：[`python .\main.py run`](cli/main.py:489)
-2. 通过 OpenClaw bridge 发起一次远程查询或控制，让 bridge 自动注册当前上下文
-3. 用 [`python .\main.py openclaw notification-context`](main.py:14) 检查当前上下文是否已写入
-4. 触发预警 / 锁定后，检查 [`status.notification_channel.last_dispatch`](core/engine.py:1254) 或 [`python .\main.py openclaw notifications`](main.py:14) 中的 `delivery.dispatch`
+- **QQBot 场景优先走直连 HTTP 发送**
+- **OpenClaw CLI 消息发送是兜底路径**
+- **ACP 不是危险告警主链路**，它更适合复杂会话工作继续流转
+
+### 当前回推链路
+
+1. 运行中的本地服务保存最近一次上下文：`session_key / session_label / channel / target / account`
+2. 通过 `openclaw-context` 或 bridge 自动注册上下文
+3. 危险事件进入通知队列后：
+   - QQBot：优先直连 QQ API
+   - 若直连失败：退回 OpenClaw CLI 消息发送
+   - 其他渠道：默认通过 OpenClaw CLI 消息发送
+
+### 联调建议顺序
+
+1. 启动本地服务：`python .\main.py run`
+2. 注册当前回推上下文：`python .\main.py openclaw-context --channel <channel> --target <target> --account <account>`
+3. 检查上下文：`python .\main.py openclaw notification-context`
+4. 武装：`python .\main.py openclaw arm`
+5. 人工触发一次危险事件
+6. 观察目标渠道是否收到主动提醒
+7. 再查看 `notifications` / `events` / `status.notification_channel`
+
+更完整说明见 [`docs/NOTIFICATION-FLOW.md`](docs/NOTIFICATION-FLOW.md)。
 
 ## 回归检查
 
@@ -193,75 +179,51 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test_openclaw_bridge.ps1
 - WebUI 监听地址与端口
 - OpenClaw 主动通知回推配置
 
-新增的 OpenClaw 通知配置骨架：
+OpenClaw 通知配置示例：
 
 ```yaml
 openclaw:
   notifications:
-    enabled: false
+    enabled: true
     command: openclaw
     timeout_seconds: 8
     context_ttl_seconds: 900
     message_prefix: "[ClawCamKeeper]"
     routes:
       qqbot:
-        target: ""
-        account: ""
+        target: "qqbot:c2c:YOUR_TARGET"
+        account: "default"
       feishu:
         target: ""
         account: ""
     fallback:
-      channel: ""
-      target: ""
-      account: ""
+      channel: "qqbot"
+      target: "qqbot:c2c:YOUR_TARGET"
+      account: "default"
 ```
 
 说明：
 
-- `enabled=true` 后才会真正主动调用 [`openclaw message send`](AGENTS.md)
-- `routes.qqbot` / `routes.feishu` 用于“当前上下文只有 channel，没有 target/account”时做静态补全
-- `fallback` 用于当前没有活动 OpenClaw 上下文时的兜底渠道
-- 最近一次上下文注册结果和最近一次分发结果可从 [`status`](cli/openclaw_bridge.py:385) 的 `notification_channel.context / last_dispatch` 读取
+- `enabled=true` 后才会真正主动回推
+- `routes` 用于静态补全渠道路由
+- `fallback` 用于当前没有活动上下文时的兜底路由
+- 最近一次上下文与分发结果可从 `notification-context` / `status.notification_channel` 查看
 
-## 给 GitHub 分发用户的关键说明
+## 常见问题
 
-如果别人从 GitHub clone 了这个仓库，并希望让自己的 OpenClaw 使用它，有两种路径：
+如果遇到以下情况，优先看排障文档：
 
-### 路径 A：直接把整个仓库作为 skill 仓库放进 OpenClaw skill 目录
+- `service_unavailable` / `WinError 10061`
+- 8765 端口被旧实例占用
+- 通知上下文为空，导致发不回当前聊天
+- `Weixin.exe` 不可用，看起来像动作链坏了
 
-适用于支持“用 GitHub 仓库直接安装 skill”的 agent / skill 管理器。
-
-要求：
-
-1. 安装后的目录根包含 [`SKILL.md`](SKILL.md)
-2. 安装后的目录中同时包含完整项目代码（[`main.py`](main.py)、[`cli/`](cli/__init__.py)、[`core/`](core/__init__.py)、[`webui/`](webui/app.py)、[`config/`](config/settings.yaml) 等）
-3. 在该目录下安装依赖并启动服务
-
-### 路径 B：先 clone 到任意目录，再同步到 OpenClaw workspace
-
-1. clone 仓库到本地任意目录
-2. 安装 Python 依赖
-3. 运行 [`scripts/install_openclaw_skill.ps1`](scripts/install_openclaw_skill.ps1) 把**整个仓库**同步进 OpenClaw workspace
-4. 进入 `C:\Users\你的用户名\.openclaw\workspace\skills\clawcamkeeper-openclaw`
-5. 运行 [`python .\main.py run`](cli/main.py:489) 启动本地服务
-6. 之后 OpenClaw 可直接把该 skill 目录当作项目根目录使用
+详见 [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)。
 
 ## 当前限制
 
 - 项目当前主要面向 Windows
-- OpenClaw `agent --local` 的 embedded 模型调用是否成功，仍依赖用户本机 provider 凭据与 token 状态
-- 主动通知回推当前基于 [`openclaw message send`](AGENTS.md) 的 channel/target 路由，不是直接写入 ACP 原生事件流
-- 如果 OpenClaw 当前调用链没有提供 `channel / target`，则需要依赖 [`config/settings.yaml`](config/settings.yaml) 中的 `routes` 或 `fallback` 补全
-- 若使用的是“同步脚本安装”而不是“直接 Git 克隆到 skill 目录”，更新流程应重新执行 [`scripts/install_openclaw_skill.ps1`](scripts/install_openclaw_skill.ps1) 覆盖 skill 副本
-
-## 当前验证状态
-
-已完成一次本地模拟冒烟验证：
-
-- 通过 monkeypatch [`core.engine.subprocess.run`](core/engine.py:519) 模拟 `openclaw message send`
-- 注册 `qqbot` 上下文后，触发 [`danger_lock`](core/engine.py:699) 事件
-- 验证结果确认通知已进入 [`get_notifications()`](core/engine.py:624) 队列，且 `delivery.dispatch` 中记录了主动发送参数与成功状态
-
-## 许可证
-
-见 [`LICENSE`](LICENSE)。
+- OpenClaw `agent --local` / 某些 chat 直通能力仍受 provider 凭据与 token 状态影响
+- 通知链虽然支持会话上下文，但并不等于 ACP 原生事件流
+- 如果当前调用链没有提供 `channel / target`，则需要依赖配置中的 `routes` 或 `fallback`
+- 如果使用同步脚本安装 skill，更新时应重新同步整个仓库，而不是只覆盖 `SKILL.md`
