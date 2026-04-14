@@ -205,6 +205,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test_openclaw_bridge.ps1
 
 默认配置文件：[`config/settings.yaml`](config/settings.yaml)
 
+另外建议把 [`config/settings.example.yaml`](config/settings.example.yaml) 视为**分发模板**：
+
+- `settings.yaml`：仓库内默认安全值，可直接随 GitHub 分发
+- `settings.example.yaml`：带占位示例，方便新环境按自己渠道与目标补齐
+
 主要配置包括：
 
 - 摄像头参数
@@ -213,6 +218,33 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test_openclaw_bridge.ps1
 - 风险程序列表
 - WebUI 局域网开关、监听地址与端口（`webui.allow_lan / host / port`）
 - OpenClaw 主动通知回推配置（含默认 routes / fallback / timeout / TTL / prefix）
+
+## 首次分发后的最短上手
+
+如果别人从 GitHub 拿到这个 skill，建议按这个最短路径配置：
+
+1. 复制模板并按自己环境填写
+   ```powershell
+   Copy-Item .\config\settings.example.yaml .\config\settings.local.yaml
+   ```
+   然后把：
+   - `safe_window.primary / backup`
+   - `risk_apps`
+   - `openclaw.notifications.routes`
+   - `openclaw.notifications.fallback`
+   改成自己环境的值
+
+2. 启动服务
+   ```powershell
+   python .\main.py run
+   ```
+
+3. 如果不想把当前聊天目标写进配置文件，直接运行时注册上下文
+   ```powershell
+   python .\main.py openclaw-context --channel <channel> --target <target> --account <account>
+   ```
+
+这样既能保持仓库分发干净，也能让新环境快速可用。
 
 ## 首次安装后的配置指南
 
