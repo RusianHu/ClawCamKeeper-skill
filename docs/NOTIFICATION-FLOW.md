@@ -63,7 +63,7 @@
 - `action_failure`
 - `camera_failure`
 
-而像 `arm` / `disarm` / `recover` 这类更偏状态变化的事件，默认更适合查询，不一定作为主动危险告警主消息。
+而像 `arm` / `disarm` / `recover` 这类更偏状态变化的事件，默认更适合查询，不作为主动危险告警主消息。
 
 ## 联调 SOP
 
@@ -81,7 +81,7 @@
    ```
 3. 检查上下文
    ```powershell
-   python .\main.py openclaw notification-context
+   python .\main.py openclaw-context-show
    ```
 4. 武装
    ```powershell
@@ -102,7 +102,7 @@
 优先排查：
 - 上下文是否没注册
 - `channel / target / account` 是否为空
-- 当前事件是否属于主动推送事件
+- 当前事件是否属于主动推送事件（如 `action_success` / `danger_lock`）
 - QQ 直连是否失败
 - CLI 兜底是否也失败
 

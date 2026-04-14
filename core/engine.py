@@ -1504,8 +1504,8 @@ class MonitorEngine:
             latest_notification_id = self._notifications[-1]["id"] if self._notifications else 0
         status["notification_channel"] = {
             "poll_endpoint": "/api/notifications",
-            "supported_immediate_events": ["arm", "disarm", "recover", "danger_lock", "action_failure", "camera_failure"],
-            "query_only_events": ["action_success", "action_test", "config_reload", "pre_alert"],
+            "supported_immediate_events": ["action_success", "danger_lock", "action_failure", "camera_failure"],
+            "query_only_events": ["arm", "disarm", "recover", "action_test", "config_reload", "pre_alert"],
             "pending": pending_notifications,
             "latest_id": latest_notification_id,
             "dedupe_window_s": self._notification_dedupe_window_s,

@@ -99,6 +99,7 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 按顺序：
 - `python .\main.py openclaw notifications --since-id 0 --limit 10`
 - 如果需要完整时间线，再补 `python .\main.py openclaw events --limit 10`
+- 重点关注 `action_success / danger_lock / action_failure`
 - 如果出现 `danger_lock`，必须再读一次 `status`
 
 ### 5) 用户要改安全窗口
@@ -139,7 +140,7 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 
 1. 启动服务：`python .\main.py run`
 2. 注册上下文：`python .\main.py openclaw-context --channel <channel> --target <target> --account <account>`
-3. 确认上下文：`python .\main.py openclaw notification-context`
+3. 确认上下文：`python .\main.py openclaw-context-show`
 4. 武装：`python .\main.py openclaw arm`
 5. 人工触发告警
 6. 检查渠道是否收到主动提醒

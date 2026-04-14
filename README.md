@@ -156,7 +156,7 @@ OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py
 
 1. 启动本地服务：`python .\main.py run`
 2. 注册当前回推上下文：`python .\main.py openclaw-context --channel <channel> --target <target> --account <account>`
-3. 检查上下文：`python .\main.py openclaw notification-context`
+3. 检查上下文：`python .\main.py openclaw-context-show`
 4. 武装：`python .\main.py openclaw arm`
 5. 人工触发一次危险事件
 6. 观察目标渠道是否收到主动提醒
@@ -193,8 +193,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test_openclaw_bridge.ps1
 - 检测阈值与风险区
 - 主 / 备安全窗口
 - 风险程序列表
-- WebUI 监听地址与端口
-- OpenClaw 主动通知回推配置
+- WebUI 局域网开关、监听地址与端口（`webui.allow_lan / host / port`）
+- OpenClaw 主动通知回推配置（含默认 routes / fallback / timeout / TTL / prefix）
 
 ## 首次安装后的配置指南
 
@@ -260,7 +260,7 @@ openclaw:
 - `routes` 用于静态补全渠道路由
 - `fallback` 用于当前没有活动上下文时的兜底路由
 - `session_key / session_label` 不建议写入配置文件，应由运行时 `openclaw-context` 注册
-- 最近一次上下文与分发结果可从 `notification-context` / `status.notification_channel` 查看
+- 最近一次上下文与分发结果可从 `openclaw-context-show` / `status.notification_channel` 查看
 
 ## 常见问题
 
