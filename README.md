@@ -179,6 +179,37 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test_openclaw_bridge.ps1
 - WebUI 监听地址与端口
 - OpenClaw 主动通知回推配置
 
+## 首次安装后的配置指南
+
+把 skill 分发到新环境后，通常需要先做一轮**静态配置**，但不要把**当前会话的 session 绑定信息**写死进配置文件。
+
+### 适合写进 `settings.yaml` 的静态配置
+
+这些属于长期稳定配置：
+
+- `safe_window.primary` / `safe_window.backup`
+- `risk_apps`
+- `webui.host` / `webui.port`
+- `openclaw.notifications.enabled`
+- `openclaw.notifications.routes.<channel>.target`
+- `openclaw.notifications.routes.<channel>.account`
+- `openclaw.notifications.fallback.channel / target / account`
+
+### 不建议写死进 `settings.yaml` 的运行时上下文
+
+这些更适合通过 `openclaw-context` 在运行时注册：
+
+- `session_key`
+- `session_label`
+- 当前聊天临时使用的 `channel / target / account`
+
+原因：这些值代表的是**当前会话语义**，不是长期稳定配置。如果把它们当成静态配置，会把“默认路由”和“当前会话绑定”混在一起。
+
+### 推荐心智模型
+
+- **默认通知去哪儿**：用 `routes` / `fallback` 配
+- **当前这次聊天该回到哪儿**：用 `openclaw-context` 注册
+
 OpenClaw 通知配置示例：
 
 ```yaml
@@ -207,6 +238,7 @@ openclaw:
 - `enabled=true` 后才会真正主动回推
 - `routes` 用于静态补全渠道路由
 - `fallback` 用于当前没有活动上下文时的兜底路由
+- `session_key / session_label` 不建议写入配置文件，应由运行时 `openclaw-context` 注册
 - 最近一次上下文与分发结果可从 `notification-context` / `status.notification_channel` 查看
 
 ## 常见问题

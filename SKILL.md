@@ -34,6 +34,41 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 
 如果有包装脚本 `scripts/invoke-clawcamkeeper-openclaw.ps1`，可以优先用它；但确认在仓库根目录时，直接 `python .\main.py openclaw ...` 也可以。
 
+## 首次分发后的最小配置
+
+把 skill 分发到新环境后，通常**需要改一部分静态配置**，但**不要把 session 绑定信息写死进配置文件**。
+
+### 适合写进 `config/settings.yaml` 的静态配置
+
+这些属于长期稳定配置：
+
+- `safe_window.primary` / `safe_window.backup`
+- `risk_apps`
+- `webui.host` / `webui.port`
+- `openclaw.notifications.enabled`
+- `openclaw.notifications.routes.<channel>.target`
+- `openclaw.notifications.routes.<channel>.account`
+- `openclaw.notifications.fallback.channel / target / account`
+
+### 不建议写死进配置文件的运行时上下文
+
+这些更适合在运行时由 `openclaw-context` 注册，而不是作为安装后手填配置项：
+
+- `session_key`
+- `session_label`
+- 当前会话临时绑定的 `channel / target / account`
+
+原因很简单：`session_*` 代表的是**某次会话**或**某次当前聊天上下文**，不是长期稳定配置。把它们写死进配置文件，容易把临时上下文和长期路由混在一起。
+
+### 正确做法
+
+- **长期默认路由**：写进 `routes` / `fallback`
+- **当前会话绑定**：通过 `python .\main.py openclaw-context ...` 在运行时注册
+
+也就是说：
+- 新环境首次安装后，通常要改 `settings.yaml`
+- 但通常**不需要**让用户手动去写 `session id`
+
 ## 30 秒分流
 
 ### 1) 用户要看当前保护状态
@@ -67,6 +102,15 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 - 检查 `data.config_set`、`data.config_reload`
 - 检查 `state_snapshot.primary_safe_app`、`state_snapshot.backup_safe_app`
 - 若保存成功但热加载失败，要明确说明“配置已落盘，但运行中的服务未热加载成功”
+
+## 配置边界
+
+通知联调时最容易混淆的一点是：
+
+- **静态配置** 应放在 `config/settings.yaml`
+- **运行时上下文** 应通过 `openclaw-context` 注册
+
+不要把 `session_key / session_label` 当作长期配置项持久化。它们属于当前会话语义，不属于安装后长期配置。
 
 ## 通知链规则
 

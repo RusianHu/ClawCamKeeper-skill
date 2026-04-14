@@ -33,6 +33,27 @@
    - **其他渠道**：默认走 `openclaw message send`
 6. 分发结果写入 `delivery.dispatch` 与最近一次 dispatch 状态
 
+## 静态配置 vs 运行时上下文
+
+这里必须分清楚：
+
+### 静态配置（适合写进 `settings.yaml`）
+- 默认 `routes`
+- `fallback`
+- 是否启用通知
+- 默认账号
+
+### 运行时上下文（不建议写死进配置文件）
+- `session_key`
+- `session_label`
+- 当前聊天临时绑定的 `channel / target / account`
+
+也就是说：
+- `settings.yaml` 负责“默认发到哪儿”
+- `openclaw-context` 负责“这一次当前聊天该回到哪儿”
+
+不要把 `session_key / session_label` 当作安装后必须手填的长期配置项。
+
 ## 哪些事件会主动推送
 
 当前主动推送事件主要包括：
