@@ -26,24 +26,25 @@ safe_window:
   backup: calc.exe
   primary: Weixin.exe
 webui:
+  allow_lan: false
   debug: false
   host: 127.0.0.1
   port: 8765
 openclaw:
   notifications:
-    enabled: false
+    enabled: true
     command: openclaw
     timeout_seconds: 8
     context_ttl_seconds: 900
     message_prefix: "[ClawCamKeeper]"
     routes:
       qqbot:
-        target: ""
-        account: ""
+        target: "qqbot:c2c:BBD5BE9523E5F99487345D9CADECEC2B"
+        account: "default"
       feishu:
         target: ""
         account: ""
     fallback:
-      channel: ""
-      target: ""
-      account: ""
+      channel: "qqbot"
+      target: "qqbot:c2c:BBD5BE9523E5F99487345D9CADECEC2B"
+      account: "default"

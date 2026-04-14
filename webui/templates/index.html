@@ -1880,10 +1880,18 @@
                                             <option value="CRITICAL">CRITICAL</option>
                                         </select>
                                     </div>
+                                    <div class="field-wide">
+                                        <label>允许局域网访问</label>
+                                        <div class="toggle-row">
+                                            <span style="color: var(--text-primary); font-size: 0.88rem;">webui.allow_lan</span>
+                                            <input id="webuiAllowLan" type="checkbox" onchange="handleWebuiAllowLanToggle()">
+                                        </div>
+                                        <small>默认关闭。关闭时仅允许 127.0.0.1 / localhost；开启后才允许监听局域网地址。</small>
+                                    </div>
                                     <div class="field">
                                         <label for="webuiHost">WebUI Host</label>
-                                        <input id="webuiHost" type="text" placeholder="127.0.0.1">
-                                        <small>修改后需重启服务才能改变监听地址。</small>
+                                        <input id="webuiHost" type="text" value="127.0.0.1" placeholder="127.0.0.1">
+                                        <small id="webuiHostHint">默认仅本机可访问。若开启局域网访问，可填 0.0.0.0 或指定局域网 IP。</small>
                                     </div>
                                     <div class="field">
                                         <label for="webuiPort">WebUI Port</label>
@@ -1897,6 +1905,70 @@
                                             <input id="webuiDebug" type="checkbox">
                                         </div>
                                         <small>保留到配置文件；运行中的 Uvicorn 行为仍以当前进程启动参数为准。</small>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="config-section">
+                                <div class="config-section-header">
+                                    <div class="config-section-title">OpenClaw 通知</div>
+                                    <div class="config-section-hint">用于默认路由、兜底路由与联调，不承载 session 绑定</div>
+                                </div>
+                                <div class="config-grid">
+                                    <div class="field-wide">
+                                        <label>启用主动通知</label>
+                                        <div class="toggle-row">
+                                            <span style="color: var(--text-primary); font-size: 0.88rem;">openclaw.notifications.enabled</span>
+                                            <input id="notificationsEnabled" type="checkbox">
+                                        </div>
+                                        <small>关闭后仅保留本地状态与事件，不主动发消息到外部渠道。</small>
+                                    </div>
+                                    <div class="field">
+                                        <label for="notificationsCommand">消息命令</label>
+                                        <input id="notificationsCommand" type="text" placeholder="openclaw">
+                                    </div>
+                                    <div class="field">
+                                        <label for="notificationsTimeout">发送超时（秒）</label>
+                                        <input id="notificationsTimeout" type="number" min="1" max="120" step="1">
+                                    </div>
+                                    <div class="field">
+                                        <label for="notificationsContextTtl">上下文 TTL（秒）</label>
+                                        <input id="notificationsContextTtl" type="number" min="1" max="86400" step="1">
+                                    </div>
+                                    <div class="field-wide">
+                                        <label for="notificationsMessagePrefix">消息前缀</label>
+                                        <input id="notificationsMessagePrefix" type="text" placeholder="[ClawCamKeeper]">
+                                    </div>
+                                    <div class="field">
+                                        <label for="routeQqbotTarget">QQBot 默认目标</label>
+                                        <input id="routeQqbotTarget" type="text" placeholder="qqbot:c2c:...">
+                                    </div>
+                                    <div class="field">
+                                        <label for="routeQqbotAccount">QQBot account</label>
+                                        <input id="routeQqbotAccount" type="text" placeholder="default">
+                                    </div>
+                                    <div class="field">
+                                        <label for="routeFeishuTarget">Feishu 默认目标</label>
+                                        <input id="routeFeishuTarget" type="text" placeholder="ou_xxx 或 chat_id">
+                                    </div>
+                                    <div class="field">
+                                        <label for="routeFeishuAccount">Feishu account</label>
+                                        <input id="routeFeishuAccount" type="text" placeholder="default">
+                                    </div>
+                                    <div class="field">
+                                        <label for="fallbackChannel">Fallback channel</label>
+                                        <input id="fallbackChannel" type="text" placeholder="qqbot / feishu">
+                                    </div>
+                                    <div class="field">
+                                        <label for="fallbackTarget">Fallback target</label>
+                                        <input id="fallbackTarget" type="text" placeholder="回退目标">
+                                    </div>
+                                    <div class="field">
+                                        <label for="fallbackAccount">Fallback account</label>
+                                        <input id="fallbackAccount" type="text" placeholder="default">
+                                    </div>
+                                    <div class="field-wide">
+                                        <small>这里只放长期稳定的默认路由。当前聊天绑定仍应通过 openclaw-context 在运行时注册，不要把 session_key / session_label 写死。</small>
                                     </div>
                                 </div>
                             </section>
@@ -1917,9 +1989,9 @@
                     <div class="panel-box">
                         <h3>生效说明</h3>
                         <div class="status-note">
-                            <div>• 安全窗口、风险程序、报警帧数：立即生效</div>
+                            <div>• 安全窗口、风险程序、报警帧数、通知路由：立即生效</div>
                             <div>• 摄像头参数、置信阈值、风险区域：必要时重建检测器</div>
-                            <div>• WebUI host / port、日志配置：保存到文件，但通常需重启服务</div>
+                            <div>• WebUI allow_lan / host / port、日志配置：保存到文件，但通常需重启服务</div>
                         </div>
                     </div>
 
@@ -2096,6 +2168,11 @@
             const safeWindow = config.safe_window || {};
             const webui = config.webui || {};
             const logging = config.logging || {};
+            const notifications = (((config.openclaw || {}).notifications) || {});
+            const routes = notifications.routes || {};
+            const qqbotRoute = routes.qqbot || {};
+            const feishuRoute = routes.feishu || {};
+            const fallback = notifications.fallback || {};
 
             setValue('safePrimary', safeWindow.primary ?? '');
             setValue('safeBackup', safeWindow.backup ?? '');
@@ -2117,9 +2194,23 @@
 
             setValue('loggingFile', logging.file ?? 'clawcamkeeper.log');
             setValue('loggingLevel', logging.level ?? 'INFO');
+            document.getElementById('webuiAllowLan').checked = Boolean(webui.allow_lan);
             setValue('webuiHost', webui.host ?? '127.0.0.1');
             setValue('webuiPort', webui.port ?? 8765);
             document.getElementById('webuiDebug').checked = Boolean(webui.debug);
+            updateWebuiHostUi();
+            document.getElementById('notificationsEnabled').checked = Boolean(notifications.enabled);
+            setValue('notificationsCommand', notifications.command ?? 'openclaw');
+            setValue('notificationsTimeout', notifications.timeout_seconds ?? 8);
+            setValue('notificationsContextTtl', notifications.context_ttl_seconds ?? 900);
+            setValue('notificationsMessagePrefix', notifications.message_prefix ?? '[ClawCamKeeper]');
+            setValue('routeQqbotTarget', qqbotRoute.target ?? '');
+            setValue('routeQqbotAccount', qqbotRoute.account ?? '');
+            setValue('routeFeishuTarget', feishuRoute.target ?? '');
+            setValue('routeFeishuAccount', feishuRoute.account ?? '');
+            setValue('fallbackChannel', fallback.channel ?? '');
+            setValue('fallbackTarget', fallback.target ?? '');
+            setValue('fallbackAccount', fallback.account ?? '');
             syncProcessOptions();
             renderProcessList();
             isPopulatingForm = false;
@@ -2373,11 +2464,59 @@
                     level: getStringValue('loggingLevel')
                 },
                 webui: {
+                    allow_lan: document.getElementById('webuiAllowLan').checked,
                     host: getStringValue('webuiHost'),
                     port: getIntValue('webuiPort'),
                     debug: document.getElementById('webuiDebug').checked
+                },
+                openclaw: {
+                    notifications: {
+                        enabled: document.getElementById('notificationsEnabled').checked,
+                        command: getStringValue('notificationsCommand'),
+                        timeout_seconds: getIntValue('notificationsTimeout'),
+                        context_ttl_seconds: getIntValue('notificationsContextTtl'),
+                        message_prefix: getStringValue('notificationsMessagePrefix'),
+                        routes: {
+                            qqbot: {
+                                target: getStringValue('routeQqbotTarget'),
+                                account: getStringValue('routeQqbotAccount')
+                            },
+                            feishu: {
+                                target: getStringValue('routeFeishuTarget'),
+                                account: getStringValue('routeFeishuAccount')
+                            }
+                        },
+                        fallback: {
+                            channel: getStringValue('fallbackChannel'),
+                            target: getStringValue('fallbackTarget'),
+                            account: getStringValue('fallbackAccount')
+                        }
+                    }
                 }
             };
+        }
+
+        function handleWebuiAllowLanToggle() {
+            updateWebuiHostUi();
+        }
+
+        function updateWebuiHostUi() {
+            const allowLan = document.getElementById('webuiAllowLan')?.checked;
+            const hostInput = document.getElementById('webuiHost');
+            const hint = document.getElementById('webuiHostHint');
+            if (!hostInput || !hint) return;
+
+            if (allowLan) {
+                hostInput.placeholder = '0.0.0.0 或 192.168.x.x';
+                if (!hostInput.value || hostInput.value === '127.0.0.1' || hostInput.value === 'localhost') {
+                    hostInput.value = '0.0.0.0';
+                }
+                hint.textContent = '已开启局域网访问：可填 0.0.0.0 或指定局域网 IP。请自行确保防火墙与网络边界安全。';
+            } else {
+                hostInput.value = '127.0.0.1';
+                hostInput.placeholder = '127.0.0.1';
+                hint.textContent = '默认仅本机可访问。关闭局域网访问时，仅允许 127.0.0.1 / localhost。';
+            }
         }
 
         function getStringValue(id) {

@@ -4,11 +4,16 @@
 """
 
 from copy import deepcopy
+import json
+import shutil
 import subprocess
 import threading
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, List, Optional
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from loguru import logger
 
@@ -54,6 +59,7 @@ class MonitorEngine:
         self._pre_alert_count = 0
         self._full_alert_count = 0
         self._alert_lock = threading.Lock()
+        self._full_alert_cooldown_until = 0.0
 
         # 检测配置
         self.pre_alert_frames = 10
@@ -157,6 +163,8 @@ class MonitorEngine:
         notification_cfg = openclaw_cfg.get("notifications", {}) if isinstance(openclaw_cfg, dict) else {}
         self._notification_enabled = bool(notification_cfg.get("enabled", False))
         self._notification_command = str(notification_cfg.get("command", "openclaw")).strip() or "openclaw"
+        resolved_command = shutil.which(self._notification_command)
+        self._notification_command_resolved = resolved_command or self._notification_command
         self._notification_timeout_seconds = int(notification_cfg.get("timeout_seconds", 8))
         self._notification_context_ttl_seconds = int(notification_cfg.get("context_ttl_seconds", 900))
         self._notification_message_prefix = str(notification_cfg.get("message_prefix", "[ClawCamKeeper]")).strip() or "[ClawCamKeeper]"
@@ -470,6 +478,152 @@ class MonitorEngine:
             f"状态: arm={arm_state}, alert={alert_phase}, locked={is_locked}"
         )
 
+    def _load_openclaw_main_config(self) -> dict[str, Any]:
+        candidates = [
+            Path.cwd() / "openclaw.json",
+            Path.home() / ".openclaw" / "openclaw.json",
+        ]
+        for path in candidates:
+            try:
+                if path.exists():
+                    return json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                logger.warning(f"读取 OpenClaw 主配置失败 {path}: {exc}")
+        return {}
+
+    def _qqbot_direct_send(self, route: dict[str, Any], message_text: str) -> dict[str, Any]:
+        if route.get("channel") != "qqbot":
+            return {
+                "ok": False,
+                "status": "unsupported_channel",
+                "message": f"直连后备暂只支持 qqbot，当前为 {route.get('channel')}",
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        target = str(route.get("target") or "").strip()
+        if not target.startswith("qqbot:c2c:"):
+            return {
+                "ok": False,
+                "status": "unsupported_target",
+                "message": f"QQBot 直连后备目前仅支持 c2c target，当前为 {target}",
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        openclaw_cfg = self._load_openclaw_main_config()
+        qqbot_cfg = ((openclaw_cfg.get("channels") or {}).get("qqbot") or {}) if isinstance(openclaw_cfg, dict) else {}
+        app_id = str(qqbot_cfg.get("appId") or "").strip()
+        client_secret = str(qqbot_cfg.get("clientSecret") or "").strip()
+        if not app_id or not client_secret:
+            return {
+                "ok": False,
+                "status": "missing_credentials",
+                "message": "OpenClaw 主配置中缺少 QQBot appId/clientSecret，无法走直连后备",
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        openid = target.split(":", 2)[2]
+        token_url = "https://bots.qq.com/app/getAppAccessToken"
+        token_payload = json.dumps({"appId": app_id, "clientSecret": client_secret}).encode("utf-8")
+        token_req = Request(token_url, data=token_payload, headers={"Content-Type": "application/json"}, method="POST")
+
+        try:
+            with urlopen(token_req, timeout=max(3, self._notification_timeout_seconds)) as resp:
+                token_data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+            return {
+                "ok": False,
+                "status": "token_http_error",
+                "message": f"获取 QQBot access_token 失败: HTTP {exc.code} {body}".strip(),
+                "timestamp": datetime.now().isoformat(),
+            }
+        except URLError as exc:
+            return {
+                "ok": False,
+                "status": "token_network_error",
+                "message": f"获取 QQBot access_token 网络异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "status": "token_error",
+                "message": f"获取 QQBot access_token 异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        access_token = str(token_data.get("access_token") or "").strip()
+        if not access_token:
+            return {
+                "ok": False,
+                "status": "missing_access_token",
+                "message": f"QQBot access_token 响应异常: {token_data}",
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        send_url = f"https://api.sgroup.qq.com/v2/users/{openid}/messages"
+        send_body = json.dumps({"content": message_text}).encode("utf-8")
+        send_req = Request(
+            send_url,
+            data=send_body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"QQBot {access_token}",
+                "X-Union-Appid": app_id,
+            },
+            method="POST",
+        )
+
+        try:
+            with urlopen(send_req, timeout=max(3, self._notification_timeout_seconds)) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                send_data = json.loads(raw) if raw else {}
+            return {
+                "ok": True,
+                "status": "sent_via_direct_http",
+                "message": "QQBot 直连后备发送成功",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+                "response": send_data,
+            }
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+            return {
+                "ok": False,
+                "status": "send_http_error",
+                "message": f"QQBot 直连后备发送失败: HTTP {exc.code} {body}".strip(),
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+        except URLError as exc:
+            return {
+                "ok": False,
+                "status": "send_network_error",
+                "message": f"QQBot 直连后备网络异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "status": "send_error",
+                "message": f"QQBot 直连后备发送异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+
     def _dispatch_notification(self, notification: dict[str, Any]) -> None:
         delivery = notification.setdefault("delivery", {})
         if not delivery.get("push"):
@@ -500,71 +654,159 @@ class MonitorEngine:
                 self._last_notification_dispatch_result = deepcopy(result)
             return
 
-        command = [
-            self._notification_command,
-            "message",
-            "send",
-            "--json",
-            "--channel",
-            route["channel"],
-            "--target",
-            route["target"],
-            "--message",
-            self._format_push_message(notification),
-        ]
-        if route.get("account"):
-            command.extend(["--account", route["account"]])
+        message_text = self._format_push_message(notification)
 
-        try:
-            completed = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self._notification_timeout_seconds,
-                check=False,
-            )
-            stdout = (completed.stdout or "").strip()
-            stderr = (completed.stderr or "").strip()
+        if route.get("channel") == "qqbot":
+            direct_result = self._qqbot_direct_send(route, message_text)
             result = {
-                "ok": completed.returncode == 0,
-                "status": "sent" if completed.returncode == 0 else "send_failed",
-                "message": "主动通知已发送" if completed.returncode == 0 else (stderr or stdout or "OpenClaw 主动通知发送失败"),
-                "timestamp": datetime.now().isoformat(),
-                "channel": route["channel"],
-                "target": route["target"],
-                "account": route.get("account"),
-                "route_source": route.get("route_source"),
-                "command": command,
-                "exit_code": completed.returncode,
-                "stdout": stdout,
-                "stderr": stderr,
+                **direct_result,
+                "primary_path": "qqbot_direct_http",
             }
-        except subprocess.TimeoutExpired:
-            result = {
-                "ok": False,
-                "status": "timeout",
-                "message": f"主动通知发送超时（>{self._notification_timeout_seconds}s）",
-                "timestamp": datetime.now().isoformat(),
-                "channel": route["channel"],
-                "target": route["target"],
-                "account": route.get("account"),
-                "route_source": route.get("route_source"),
-                "command": command,
-            }
-        except Exception as exc:
-            result = {
-                "ok": False,
-                "status": "error",
-                "message": f"主动通知发送异常: {exc}",
-                "timestamp": datetime.now().isoformat(),
-                "channel": route["channel"],
-                "target": route["target"],
-                "account": route.get("account"),
-                "route_source": route.get("route_source"),
-                "command": command,
-            }
+            if not direct_result.get("ok"):
+                command = [
+                    self._notification_command_resolved,
+                    "message",
+                    "send",
+                    "--json",
+                    "--channel",
+                    route["channel"],
+                    "--target",
+                    route["target"],
+                    "--message",
+                    message_text,
+                ]
+                if route.get("account"):
+                    command.extend(["--account", route["account"]])
+
+                try:
+                    completed = subprocess.run(
+                        command,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=self._notification_timeout_seconds,
+                        check=False,
+                    )
+                    stdout = (completed.stdout or "").strip()
+                    stderr = (completed.stderr or "").strip()
+                    cli_result = {
+                        "ok": completed.returncode == 0,
+                        "status": "sent_via_openclaw_cli" if completed.returncode == 0 else "send_failed",
+                        "message": "QQBot 直连失败，已通过 OpenClaw CLI 补发成功"
+                        if completed.returncode == 0
+                        else (stderr or stdout or "OpenClaw 主动通知发送失败"),
+                        "timestamp": datetime.now().isoformat(),
+                        "channel": route["channel"],
+                        "target": route["target"],
+                        "account": route.get("account"),
+                        "route_source": route.get("route_source"),
+                        "command": command,
+                        "exit_code": completed.returncode,
+                        "stdout": stdout,
+                        "stderr": stderr,
+                    }
+                except subprocess.TimeoutExpired:
+                    cli_result = {
+                        "ok": False,
+                        "status": "timeout",
+                        "message": f"OpenClaw CLI 补发超时（>{self._notification_timeout_seconds}s）",
+                        "timestamp": datetime.now().isoformat(),
+                        "channel": route["channel"],
+                        "target": route["target"],
+                        "account": route.get("account"),
+                        "route_source": route.get("route_source"),
+                        "command": command,
+                    }
+                except Exception as exc:
+                    cli_result = {
+                        "ok": False,
+                        "status": "error",
+                        "message": f"OpenClaw CLI 补发异常: {exc}",
+                        "timestamp": datetime.now().isoformat(),
+                        "channel": route["channel"],
+                        "target": route["target"],
+                        "account": route.get("account"),
+                        "route_source": route.get("route_source"),
+                        "command": command,
+                    }
+
+                result["fallback"] = cli_result
+                if cli_result.get("ok"):
+                    result["ok"] = True
+                    result["status"] = cli_result.get("status", "sent_via_openclaw_cli")
+                    result["message"] = (
+                        f"QQBot 直连失败，已通过 OpenClaw CLI 补发成功；原因为：{direct_result.get('message', '')}"
+                    )
+        else:
+            command = [
+                self._notification_command_resolved,
+                "message",
+                "send",
+                "--json",
+                "--channel",
+                route["channel"],
+                "--target",
+                route["target"],
+                "--message",
+                message_text,
+            ]
+            if route.get("account"):
+                command.extend(["--account", route["account"]])
+
+            try:
+                completed = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=self._notification_timeout_seconds,
+                    check=False,
+                )
+                stdout = (completed.stdout or "").strip()
+                stderr = (completed.stderr or "").strip()
+                result = {
+                    "ok": completed.returncode == 0,
+                    "status": "sent" if completed.returncode == 0 else "send_failed",
+                    "message": "主动通知已发送" if completed.returncode == 0 else (stderr or stdout or "OpenClaw 主动通知发送失败"),
+                    "timestamp": datetime.now().isoformat(),
+                    "channel": route["channel"],
+                    "target": route["target"],
+                    "account": route.get("account"),
+                    "route_source": route.get("route_source"),
+                    "command": command,
+                    "exit_code": completed.returncode,
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "primary_path": "openclaw_cli_message",
+                }
+            except subprocess.TimeoutExpired:
+                result = {
+                    "ok": False,
+                    "status": "timeout",
+                    "message": f"主动通知发送超时（>{self._notification_timeout_seconds}s）",
+                    "timestamp": datetime.now().isoformat(),
+                    "channel": route["channel"],
+                    "target": route["target"],
+                    "account": route.get("account"),
+                    "route_source": route.get("route_source"),
+                    "command": command,
+                    "primary_path": "openclaw_cli_message",
+                }
+            except Exception as exc:
+                result = {
+                    "ok": False,
+                    "status": "error",
+                    "message": f"主动通知发送异常: {exc}",
+                    "timestamp": datetime.now().isoformat(),
+                    "channel": route["channel"],
+                    "target": route["target"],
+                    "account": route.get("account"),
+                    "route_source": route.get("route_source"),
+                    "command": command,
+                    "primary_path": "openclaw_cli_message",
+                }
 
         delivery["dispatch"] = result
         with self._notification_dispatch_lock:
@@ -573,9 +815,10 @@ class MonitorEngine:
     def _queue_notification(self, event_type: str, message: str, data: Optional[dict[str, Any]] = None) -> None:
         """将关键事件放入轻量通知队列，用于消息转发与前端轮询。"""
         policies = {
-            "arm": {"push": True, "severity": "info", "dedupe_key": "arm_success"},
-            "disarm": {"push": True, "severity": "info", "dedupe_key": "disarm_success"},
-            "recover": {"push": True, "severity": "info", "dedupe_key": "recover_success"},
+            "arm": {"push": False, "severity": "info", "dedupe_key": "arm_success"},
+            "disarm": {"push": False, "severity": "info", "dedupe_key": "disarm_success"},
+            "recover": {"push": False, "severity": "info", "dedupe_key": "recover_success"},
+            "action_success": {"push": True, "severity": "critical", "dedupe_key": "action_success"},
             "danger_lock": {"push": True, "severity": "critical", "dedupe_key": "danger_lock"},
             "action_failure": {"push": True, "severity": "error", "dedupe_key": "action_failure"},
             "camera_failure": {"push": True, "severity": "warning", "dedupe_key": "camera_failure"},
@@ -619,7 +862,12 @@ class MonitorEngine:
             if len(self._notifications) > self._max_notifications:
                 self._notifications = self._notifications[-self._max_notifications :]
 
-        self._dispatch_notification(notification)
+        threading.Thread(
+            target=self._dispatch_notification,
+            args=(notification,),
+            daemon=True,
+            name=f"NotificationDispatch-{event_type}",
+        ).start()
 
     def get_notifications(self, since_id: int = 0, limit: int = 20) -> list[dict[str, Any]]:
         """返回轻量通知队列，供 ACP / WebUI 轮询。"""
@@ -886,8 +1134,9 @@ class MonitorEngine:
                         self._handle_person_detected()
                     elif result and not result.person_detected:
                         with self._alert_lock:
-                            if self._pre_alert_count > 0:
+                            if self._pre_alert_count > 0 or self._full_alert_count > 0:
                                 self._pre_alert_count = 0
+                                self._full_alert_count = 0
                                 self.state_machine.reset_alert()
                                 self._add_event("reset", "人体离开，重置报警计数")
 
@@ -912,6 +1161,10 @@ class MonitorEngine:
     def _handle_person_detected(self):
         """处理检测到人体"""
         with self._alert_lock:
+            now = time.time()
+            if now < self._full_alert_cooldown_until:
+                return
+
             state = self.state_machine.state
 
             if state.alert_phase == AlertPhase.NONE:
@@ -938,20 +1191,15 @@ class MonitorEngine:
 
         if result["success"]:
             self._add_event("action_success", "报警动作链执行成功", result)
+            self._pre_alert_count = 0
+            self._full_alert_count = 0
+            self._full_alert_cooldown_until = time.time() + max(2.0, self._notification_dedupe_window_s)
             self.state_machine.enter_danger_lock()
-            self._add_event(
-                "danger_lock",
-                "进入危险锁定状态，需人工恢复",
-                {
-                    "safe_window_used": result.get("safe_window_used") or result.get("target_app"),
-                    "risk_apps_minimized": result.get("risk_apps_minimized"),
-                    "timings": result.get("timings", {}),
-                },
-            )
             self._stop_detection()
         else:
             self._add_event("action_failure", "报警动作链执行失败", result)
             logger.error(f"报警动作链执行失败: {result['errors']}")
+            self._full_alert_cooldown_until = time.time() + max(2.0, self._notification_dedupe_window_s)
             self.state_machine.enter_danger_lock()
             self._add_event(
                 "danger_lock",
@@ -1262,7 +1510,7 @@ class MonitorEngine:
             "latest_id": latest_notification_id,
             "dedupe_window_s": self._notification_dedupe_window_s,
             "active_push_enabled": self._notification_enabled,
-            "push_command": self._notification_command,
+            "push_command": self._notification_command_resolved,
             "context": self._get_notification_context_snapshot(),
             "last_dispatch": self.get_notification_dispatch_status(),
         }

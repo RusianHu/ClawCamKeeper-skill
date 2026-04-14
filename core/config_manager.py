@@ -48,6 +48,7 @@ DEFAULT_CONFIG_TEMPLATE = {
         "primary": "notepad.exe",
     },
     "webui": {
+        "allow_lan": False,
         "debug": False,
         "host": "127.0.0.1",
         "port": 8765,
@@ -190,6 +191,16 @@ def _normalize_optional_str(value: Any, field_name: str) -> Optional[str]:
 
 
 
+def _normalize_loopback_host(value: Any, field_name: str, allow_lan: bool = False) -> str:
+    normalized = _normalize_str(value, field_name).lower()
+    if normalized in {"127.0.0.1", "localhost"}:
+        return "127.0.0.1"
+    if allow_lan:
+        return _normalize_str(value, field_name)
+    raise ValueError(f"配置项 {field_name} 在未开启 webui.allow_lan 时仅允许本地回环地址 127.0.0.1（或 localhost），禁止暴露到局域网/外网")
+
+
+
 def _normalize_notification_route(value: Any, field_name: str) -> dict[str, Optional[str]]:
     route = _ensure_dict(value, field_name)
     return {
@@ -302,8 +313,13 @@ def normalize_config(config: Optional[dict[str, Any]]) -> dict[str, Any]:
         },
         "webui": {
             **webui,
+            "allow_lan": _normalize_bool(webui.get("allow_lan", False), "webui.allow_lan"),
             "debug": _normalize_bool(webui.get("debug", False), "webui.debug"),
-            "host": _normalize_str(webui.get("host", "127.0.0.1"), "webui.host"),
+            "host": _normalize_loopback_host(
+                webui.get("host", "127.0.0.1"),
+                "webui.host",
+                allow_lan=_normalize_bool(webui.get("allow_lan", False), "webui.allow_lan"),
+            ),
             "port": _normalize_int(webui.get("port", 8765), "webui.port", minimum=1, maximum=65535),
         },
         "openclaw": {

@@ -10,10 +10,27 @@
 
 - 本地常驻监控与双阶段预警
 - 危险成立后自动切换到安全窗口并最小化风险程序
+- 危险动作成功后进入危险锁定，避免反复触发
 - WebUI 状态面板、配置编辑、热加载
 - CLI 控制与调试
 - OpenClaw / bridge 机器可读适配层
 - 通知队列、最近动作结果、时间线、远程动作矩阵
+
+## 配置建议
+
+适合长期写入 `config/settings.yaml` 的包括：
+
+- 主/备安全窗口：`safe_window.primary` / `safe_window.backup`
+- 风险程序列表：`risk_apps`
+- 检测阈值与帧数：`detection.*`
+- WebUI 端口：`webui.port`
+- WebUI 主机与局域网开关：`webui.host` / `webui.allow_lan`（默认仅本地回环，开启后可显式允许局域网访问）
+- OpenClaw 默认通知路由：`openclaw.notifications.*`
+
+其中：
+- `routes / fallback` 负责长期默认发到哪儿
+- `session_key / session_label` 不属于静态配置，不应手写进配置文件
+- 当前聊天绑定应通过 `python .\main.py openclaw-context ...` 运行时注册
 
 ## 仓库结构
 
@@ -189,8 +206,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test_openclaw_bridge.ps1
 
 - `safe_window.primary` / `safe_window.backup`
 - `risk_apps`
-- `webui.host` / `webui.port`
+- `webui.host` / `webui.allow_lan` / `webui.port`
 - `openclaw.notifications.enabled`
+- `openclaw.notifications.command`
+- `openclaw.notifications.timeout_seconds`
+- `openclaw.notifications.context_ttl_seconds`
+- `openclaw.notifications.message_prefix`
 - `openclaw.notifications.routes.<channel>.target`
 - `openclaw.notifications.routes.<channel>.account`
 - `openclaw.notifications.fallback.channel / target / account`

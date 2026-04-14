@@ -44,8 +44,13 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 
 - `safe_window.primary` / `safe_window.backup`
 - `risk_apps`
-- `webui.host` / `webui.port`
+- `webui.port`
+- `webui.host` / `webui.allow_lan`（默认仅允许 `127.0.0.1` / `localhost`；只有显式开启 `allow_lan` 后，才允许监听局域网地址）
 - `openclaw.notifications.enabled`
+- `openclaw.notifications.command`
+- `openclaw.notifications.timeout_seconds`
+- `openclaw.notifications.context_ttl_seconds`
+- `openclaw.notifications.message_prefix`
 - `openclaw.notifications.routes.<channel>.target`
 - `openclaw.notifications.routes.<channel>.account`
 - `openclaw.notifications.fallback.channel / target / account`
@@ -168,6 +173,16 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 处理：
 - 先注册 `openclaw-context`
 - 再做告警联调
+
+### WebUI 暴露到局域网/外网的边界
+症状：
+- 想把 `webui.host` 改成 `0.0.0.0`、局域网 IP 或其他非回环地址
+- 需要从局域网其他设备访问控制面
+
+处理：
+- 默认情况下，项目会强制校验 `webui.host`，仅允许 `127.0.0.1`（`localhost` 会被归一化为 `127.0.0.1`）
+- **只有显式开启 `webui.allow_lan=true` 后**，才允许把 host 设为 `0.0.0.0` 或指定局域网 IP
+- 即便开启局域网访问，也应自行确保防火墙、网段边界与代理暴露策略正确，不要把 WebUI 直接裸奔到公网
 
 ### 主安全窗口不可用
 症状：
