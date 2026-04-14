@@ -107,8 +107,36 @@ class ActionChain:
         logger.warning(f"安全窗口目标不可启动: {app_name}")
         return False
 
+    def _candidate_process_names(self, exe_name: str) -> List[str]:
+        """根据配置中的 exe 名，推导可能的真实进程名候选。"""
+        normalized = str(exe_name or "").strip()
+        if not normalized:
+            return []
+
+        lowered = normalized.lower()
+        candidates = [normalized]
+
+        alias_map = {
+            "calc.exe": ["CalculatorApp.exe", "ApplicationFrameHost.exe"],
+            "calculatorapp.exe": ["calc.exe", "ApplicationFrameHost.exe"],
+            "weixin.exe": ["Weixin.exe"],
+        }
+        for item in alias_map.get(lowered, []):
+            if item not in candidates:
+                candidates.append(item)
+
+        return candidates
+
+    def _window_title_keywords(self, exe_name: str) -> List[str]:
+        lowered = str(exe_name or "").strip().lower()
+        mapping = {
+            "calc.exe": ["计算器", "calculator"],
+            "calculatorapp.exe": ["计算器", "calculator"],
+        }
+        return mapping.get(lowered, [])
+
     def find_windows_by_exe(self, exe_name: str) -> List[WindowInfo]:
-        """根据进程名查找窗口"""
+        """根据进程名查找窗口，支持现代 Windows 应用宿主/标题兜底。"""
         if not HAS_WIN32:
             return []
 
@@ -116,18 +144,34 @@ class ActionChain:
             logger.debug(f"psutil 不可用，无法按进程名精确枚举窗口: {exe_name}")
             return []
 
+        target_names = {item.lower() for item in self._candidate_process_names(exe_name)}
+        title_keywords = [item.lower() for item in self._window_title_keywords(exe_name)]
         results = []
+        seen_hwnds = set()
 
         def enum_callback(hwnd, _):
-            if win32gui.IsWindowVisible(hwnd):
-                _, pid = win32process.GetWindowThreadProcessId(hwnd)
-                try:
-                    process = psutil.Process(pid)
-                    if process.name().lower() == exe_name.lower():
-                        title = win32gui.GetWindowText(hwnd)
-                        results.append(WindowInfo(hwnd, title, pid, process.name()))
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+
+            title = win32gui.GetWindowText(hwnd) or ""
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            try:
+                process = psutil.Process(pid)
+                process_name = process.name()
+                process_name_lower = process_name.lower()
+
+                matched = process_name_lower in target_names
+
+                if not matched and title_keywords and title:
+                    title_lower = title.lower()
+                    if any(keyword in title_lower for keyword in title_keywords):
+                        matched = process_name_lower == "applicationframehost.exe" or process_name_lower in target_names
+
+                if matched and hwnd not in seen_hwnds:
+                    results.append(WindowInfo(hwnd, title, pid, process_name))
+                    seen_hwnds.add(hwnd)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
             return True
 
         try:
@@ -187,7 +231,7 @@ class ActionChain:
         """尝试启动指定应用"""
         try:
             subprocess.Popen(app_name, shell=True)
-            time.sleep(0.25)  # 给予进程一个较短的启动缓冲
+            time.sleep(0.6)  # 给予现代 UWP / 宿主窗口更充足的启动缓冲
             return True
         except Exception as e:
             logger.error(f"启动 {app_name} 失败: {e}")
@@ -321,6 +365,22 @@ class ActionChain:
                         self._last_switch_diagnostics = diagnostics
                         success_msg = f"已启动并切换到: {app_name}"
                         logger.info(f"{success_msg}，路径=launch_and_wait，总耗时={diagnostics['total_ms']}ms")
+                        return True, success_msg, diagnostics
+
+            foreground_after = self.find_foreground_window()
+            if foreground_after and foreground_after.exe_name:
+                for app_name in [self.primary_safe_app, self.backup_safe_app]:
+                    if foreground_after.exe_name.lower() == app_name.lower():
+                        self._safe_window_status[app_name] = True
+                        diagnostics["target_app"] = app_name
+                        diagnostics["success"] = True
+                        diagnostics["foreground_after"] = self._serialize_window_info(foreground_after)
+                        diagnostics["total_ms"] = self._elapsed_ms(started_at)
+                        self._last_switch_diagnostics = diagnostics
+                        success_msg = f"已启动并切换到: {app_name}"
+                        logger.warning(
+                            f"{success_msg}，路径=launch_and_wait_foreground_fallback，总耗时={diagnostics['total_ms']}ms"
+                        )
                         return True, success_msg, diagnostics
 
         self._last_error = "无法切换到安全窗口"

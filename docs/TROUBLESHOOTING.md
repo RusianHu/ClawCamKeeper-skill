@@ -24,16 +24,30 @@ python .\main.py openclaw doctor
 
 ---
 
-## 2. 8765 端口被旧实例占用
+## 2. 8765 端口被旧实例占用 / 看起来重启了但其实还是旧代码
 
 ### 症状
 - 新服务日志里出现 bind 失败
 - 看起来启动成功过，但实际响应的是旧版本
 - 修改代码后效果不生效
+- `service-restart` 前后 API 表现不一致
 
-### 处理思路
-先找旧进程，再清掉，再重启：
+### 正确处理
+现在**优先使用内置控制命令**，不要先手工 `netstat/taskkill`：
 
+```powershell
+python .\main.py service-stop
+python .\main.py service-restart --json
+```
+
+重点检查 `service-restart --json` 返回中的：
+- `start.pid`
+- `start.listening_pids`
+- `status.runtime_validation`
+
+只有当**新启动 PID 真正出现在监听 PID 列表里**，才说明新代码已接管 `8765`。
+
+### 兜底手工排查（仅在内置命令失效时）
 ```powershell
 netstat -ano | findstr :8765
 taskkill /PID <PID> /F
@@ -141,7 +155,59 @@ python .\main.py openclaw status
 
 ---
 
-## 8. 什么时候该谈 ACP，什么时候不该
+## 8. 查询时看到 `full_alert`，不一定代表最终没锁上
+
+### 现象
+在真人联调或重复压测时，可能会出现这样一种观感：
+
+- `events` / `notifications` 先显示 `pre_alert`
+- 随后显示 `full_alert`
+- 此时如果你立刻查询，可能暂时还没看到最终 `danger_locked`
+
+容易误判成：
+- “是不是只到完全报警，没真正锁死？”
+
+### 正确认知
+这未必是失败，也可能只是**状态推进时序**。
+
+在 2026-04-14 的多轮真人联调中，现场已经验证过：
+- 中途查询确实可能先看到 `full_alert`
+- 但稍后再次回读 `status`，最终状态会稳定落到 `danger_locked`
+
+因此，判断是否真正锁定，**以最终 `status` 为准**，重点看：
+- `arm_state=danger_locked`
+- `is_locked=true`
+- `last_event_message=进入危险锁定状态`
+
+### 推荐处理
+如果你在联调时正好撞到这个时间窗：
+
+```powershell
+python .\main.py openclaw status
+python .\main.py openclaw events --limit 10
+python .\main.py openclaw notifications --since-id 0 --limit 10
+```
+
+优先用 `status` 判定最终结果，不要只凭中途一拍的 `full_alert` 就断言失败。
+
+---
+
+## 9. 联调结束后如何正确收口
+
+如果已经完成验证，且暂时不需要继续监控，建议直接：
+
+```powershell
+python .\main.py service-stop
+```
+
+这样可以避免：
+- 后台检测线程继续运行
+- 残留服务进程影响下次联调
+- 误把上一轮状态带到下一轮测试
+
+---
+
+## 10. 什么时候该谈 ACP，什么时候不该
 
 ### 适合 ACP
 - 要把复杂 agent 工作送回某个会话继续做

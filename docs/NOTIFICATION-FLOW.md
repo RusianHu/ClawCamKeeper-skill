@@ -65,16 +65,38 @@
 
 而像 `arm` / `disarm` / `recover` 这类更偏状态变化的事件，默认更适合查询，不作为主动危险告警主消息。
 
+## 已验证联调结果（2026-04-14）
+
+在 Windows 11 本机环境下，以下链路已经完成真人联调与重复压测：
+
+- 当前 QQ 私聊上下文注册成功
+- 真人摄像头触发成功
+- 状态推进 `pre_alert -> full_alert -> danger_locked`
+- 动作链执行成功（安全窗口切换 / 风险程序最小化）
+- QQBot 直连 HTTP 主动回推成功
+- 多轮重复压测后仍能成功落锁
+
+因此，当前更准确的结论不是“理论上可用”，而是：
+
+> **危险触发 -> 动作执行 -> 危险锁定 -> QQ 主动回推**
+>
+> **已经完成真人实测，并具备重复成功能力。**
+
 ## 联调 SOP
 
 ### 场景：我要验证 QQ 私聊能不能收到危险告警
 
 按这个顺序：
 
-1. 启动服务
+1. 确保运行的是新代码
    ```powershell
-   python .\main.py run
+   python .\main.py service-restart --json
    ```
+   重点确认：
+   - `start.pid`
+   - `start.listening_pids`
+   - `status.runtime_validation.pid_match=true`
+
 2. 注册上下文
    ```powershell
    python .\main.py openclaw-context --channel qqbot --target qqbot:c2c:YOUR_TARGET --account default
@@ -83,17 +105,25 @@
    ```powershell
    python .\main.py openclaw-context-show
    ```
-4. 武装
+4. 先做主动通知链路烟雾测试
+   ```powershell
+   python .\main.py notification-test --message "smoke test"
+   ```
+5. 武装
    ```powershell
    python .\main.py openclaw arm
    ```
-5. 人工触发危险事件
-6. 观察 QQ 是否收到主动提醒
-7. 再检查：
+6. 人工触发危险事件
+7. 观察 QQ 是否收到主动提醒
+8. 再检查：
    ```powershell
    python .\main.py openclaw notifications --since-id 0 --limit 10
    python .\main.py openclaw events --limit 10
    python .\main.py openclaw status
+   ```
+9. 联调结束后，如无需继续监控，执行：
+   ```powershell
+   python .\main.py service-stop
    ```
 
 ## 常见故障

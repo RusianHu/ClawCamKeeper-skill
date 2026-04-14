@@ -152,6 +152,23 @@ OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py
    - 若直连失败：退回 OpenClaw CLI 消息发送
    - 其他渠道：默认通过 OpenClaw CLI 消息发送
 
+### 已验证联调结果（2026-04-14）
+
+截至 2026-04-14，已完成：
+
+- 自动化 `action-test --full-check` 回归通过
+- 真人摄像头触发联调通过
+- 多轮重复压测通过
+- 当前 QQ 会话主动回推通过
+
+这意味着以下链路已被实际验证：
+
+1. 摄像头检测到人体进入
+2. 状态从 `pre_alert` 推进到 `full_alert`
+3. 动作链执行安全窗口切换与风险程序最小化
+4. 系统最终进入 `danger_locked`
+5. 当前 QQ 会话收到主动提醒
+
 ### 联调建议顺序
 
 1. 启动本地服务：`python .\main.py run`
@@ -161,6 +178,7 @@ OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py
 5. 人工触发一次危险事件
 6. 观察目标渠道是否收到主动提醒
 7. 再查看 `notifications` / `events` / `status.notification_channel`
+8. 联调结束后，如无需继续监控，执行 `python .\main.py service-stop` 收口
 
 更完整说明见 [`docs/NOTIFICATION-FLOW.md`](docs/NOTIFICATION-FLOW.md)。
 
