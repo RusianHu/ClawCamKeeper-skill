@@ -2,9 +2,7 @@
 
 一个运行在本地、由 OpenClaw 参与控制与通知的轻量 **工位摸鱼防护预警技能**。
 
-项目目标不是识别“谁来了”，而是判断 **是否有人进入可见屏幕的危险空间**，并在必要时把当前环境切到安全态。
-
-详细规划见 [`PLAN-CORE.md`](PLAN-CORE.md)。
+当有 **人形生物** 进入可见摄像头的 **危险空间** 时，把当前屏幕环境切到安全态，避免暴露你的小隐私状态。
 
 ## 功能概览
 
@@ -15,6 +13,16 @@
 - CLI 控制与调试
 - OpenClaw / bridge 机器可读适配层
 - 通知队列、最近动作结果、时间线、远程动作矩阵
+
+## 一键部署（推荐）
+
+直接和你的龙虾 openclaw 说：
+
+```text
+为你自己安装这个 skill ： https://github.com/RusianHu/ClawCamKeeper-skill 
+```
+
+剩下的就不用管了，交给龙虾，剩下的是调试时看的，龙虾自己会看 [SKILL.md](SKILL.md) 。
 
 ## 配置建议
 
@@ -32,18 +40,6 @@
 - `session_key / session_label` 不属于静态配置，不应手写进配置文件
 - 当前聊天绑定应通过 `python .\main.py openclaw-context ...` 运行时注册
 
-## 仓库结构
-
-- [`main.py`](main.py) —— 项目入口
-- [`cli/main.py`](cli/main.py) —— CLI 与本地服务入口
-- [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py) —— OpenClaw 机器可读桥接层
-- [`core/`](core/__init__.py) —— 状态机、检测、动作链、配置热加载
-- [`webui/app.py`](webui/app.py) —— FastAPI WebUI
-- [`SKILL.md`](SKILL.md) —— OpenClaw skill 入口
-- [`AGENTS.md`](AGENTS.md) —— 仓库内部约束与工作准则
-- [`docs/NOTIFICATION-FLOW.md`](docs/NOTIFICATION-FLOW.md) —— 主动通知回推链路说明
-- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) —— 常见故障排查
-
 ## 运行环境
 
 当前项目以 **Windows 11 + Python 3.10+** 为主要目标环境。
@@ -57,13 +53,13 @@
 
 ## 安装依赖
 
-在仓库根目录执行：
+在部署本 skill 的根目录执行：
 
 ```powershell
 python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-## 启动本地服务
+## 手动启动本地服务
 
 在仓库根目录执行：
 
@@ -96,7 +92,7 @@ python .\main.py notifications --since-id 0 --limit 10 --json
 python .\main.py action-test --json
 ```
 
-## 安装 OpenClaw skill
+## 手动同步到 OpenClaw skill
 
 如果你希望 OpenClaw 在自己的 workspace 中直接拥有这个项目的**完整代码副本**，请在**当前仓库根目录**执行：
 
