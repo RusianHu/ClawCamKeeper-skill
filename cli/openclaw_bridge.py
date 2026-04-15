@@ -36,7 +36,11 @@ DEFAULT_TIMEOUTS = {
     "notifications": 10,
     "openclaw-context": 10,
     "openclaw-context-show": 10,
+    "openclaw-context-clear": 10,
     "action-test": 35,
+    "notification-test": 20,
+    "service-stop": 20,
+    "service-restart": 40,
 }
 
 SUCCESS_MESSAGES = {
@@ -46,10 +50,17 @@ SUCCESS_MESSAGES = {
     "disarm": "远程解除武装请求执行完成",
     "recover": "远程恢复请求执行完成",
     "config-show": "配置读取成功",
+    "config-set": "配置保存成功",
+    "config-reload": "配置重载完成",
     "events": "事件查询成功",
     "notifications": "通知查询成功",
     "set-safe-window": "安全窗口配置更新完成",
+    "notification-context": "通知上下文查询成功",
+    "notification-context-clear": "通知上下文已清空",
     "action-test": "动作链测试完成",
+    "notification-test": "通知链路测试完成",
+    "service-stop": "服务停止完成",
+    "service-restart": "服务完全重启完成",
 }
 
 
@@ -541,6 +552,51 @@ def notifications(ctx: click.Context, since_id: int, limit: int) -> None:
     _echo_response(response)
 
 
+@openclaw_bridge.command("config-set")
+@click.option("--safe-window", default=None, help="主安全窗口进程名")
+@click.option("--backup-window", default=None, help="备选安全窗口进程名")
+@click.option("--risk-app", multiple=True, help="风险程序名称（可多次指定）")
+@click.option("--set", "sets", multiple=True, help="按 key=value 写入任意配置")
+@click.pass_context
+def config_set(ctx: click.Context, safe_window: Optional[str], backup_window: Optional[str], risk_app: tuple[str, ...], sets: tuple[str, ...]) -> None:
+    config_path = ctx.obj.get("config_path")
+    args: list[str] = []
+    if safe_window:
+        args.extend(["--safe-window", safe_window])
+    if backup_window:
+        args.extend(["--backup-window", backup_window])
+    for item in risk_app:
+        args.extend(["--risk-app", item])
+    for item in sets:
+        args.extend(["--set", item])
+
+    result = _run_cli_json("config-set", args, config_path=config_path, timeout=DEFAULT_TIMEOUTS["config-set"])
+    response = _build_response(
+        action="config-set",
+        result=result,
+        data=result.get("payload"),
+        extra_debug=_context_debug(ctx),
+    )
+    _echo_response(response)
+
+
+@openclaw_bridge.command("config-reload")
+@click.pass_context
+def config_reload(ctx: click.Context) -> None:
+    config_path = ctx.obj.get("config_path")
+    result = _run_cli_json("config-reload", config_path=config_path, timeout=DEFAULT_TIMEOUTS["config-reload"])
+    snapshot, snapshot_error = _collect_state_snapshot(config_path)
+    response = _build_response(
+        action="config-reload",
+        result=result,
+        data=result.get("payload"),
+        state_snapshot=snapshot,
+        snapshot_error=snapshot_error,
+        extra_debug=_context_debug(ctx),
+    )
+    _echo_response(response)
+
+
 @openclaw_bridge.command("set-safe-window")
 @click.option("--primary", default=None, help="主安全窗口进程名")
 @click.option("--backup", default=None, help="备选安全窗口进程名")
@@ -659,6 +715,21 @@ def notification_context(ctx: click.Context) -> None:
     _echo_response(response)
 
 
+@openclaw_bridge.command("notification-context-clear")
+@click.pass_context
+def notification_context_clear(ctx: click.Context) -> None:
+    config_path = ctx.obj.get("config_path")
+    result = _run_cli_json("openclaw-context-clear", config_path=config_path, timeout=DEFAULT_TIMEOUTS["openclaw-context-clear"])
+    payload = result.get("payload") if isinstance(result.get("payload"), dict) else None
+    response = _build_response(
+        action="notification-context-clear",
+        result=result,
+        data=payload,
+        extra_debug=_context_debug(ctx),
+    )
+    _echo_response(response)
+
+
 @openclaw_bridge.command("action-test")
 @click.option("--full-check", is_flag=True, help="执行完整检查（含摄像头探测）")
 @click.pass_context
@@ -669,6 +740,68 @@ def action_test(ctx: click.Context, full_check: bool) -> None:
     snapshot, snapshot_error = _collect_state_snapshot(config_path)
     response = _build_response(
         action="action-test",
+        result=result,
+        data=result.get("payload"),
+        state_snapshot=snapshot,
+        snapshot_error=snapshot_error,
+        extra_debug=_context_debug(ctx),
+    )
+    _echo_response(response)
+
+
+@openclaw_bridge.command("notification-test")
+@click.option("--message", default=None, help="测试消息内容")
+@click.option("--severity", default="warning", show_default=True, help="测试消息级别")
+@click.option("--event-type", default="notification_test", show_default=True, help="测试事件类型")
+@click.pass_context
+def notification_test(ctx: click.Context, message: Optional[str], severity: str, event_type: str) -> None:
+    config_path = ctx.obj.get("config_path")
+    args: list[str] = []
+    if message:
+        args.extend(["--message", message])
+    if severity:
+        args.extend(["--severity", severity])
+    if event_type:
+        args.extend(["--event-type", event_type])
+    result = _run_cli_json("notification-test", args, config_path=config_path, timeout=DEFAULT_TIMEOUTS["notification-test"])
+    snapshot, snapshot_error = _collect_state_snapshot(config_path)
+    response = _build_response(
+        action="notification-test",
+        result=result,
+        data=result.get("payload"),
+        state_snapshot=snapshot,
+        snapshot_error=snapshot_error,
+        extra_debug=_context_debug(ctx),
+    )
+    _echo_response(response)
+
+
+@openclaw_bridge.command("service-stop")
+@click.pass_context
+def service_stop(ctx: click.Context) -> None:
+    config_path = ctx.obj.get("config_path")
+    result = _run_cli_json("service-stop", config_path=config_path, timeout=DEFAULT_TIMEOUTS["service-stop"])
+    response = _build_response(
+        action="service-stop",
+        result=result,
+        data=result.get("payload"),
+        extra_debug=_context_debug(ctx),
+    )
+    _echo_response(response)
+
+
+@openclaw_bridge.command("service-restart")
+@click.option("--no-webui", is_flag=True, help="重启后不启动 WebUI")
+@click.pass_context
+def service_restart(ctx: click.Context, no_webui: bool) -> None:
+    config_path = ctx.obj.get("config_path")
+    args: list[str] = []
+    if no_webui:
+        args.append("--no-webui")
+    result = _run_cli_json("service-restart", args, config_path=config_path, timeout=DEFAULT_TIMEOUTS["service-restart"])
+    snapshot, snapshot_error = _collect_state_snapshot(config_path)
+    response = _build_response(
+        action="service-restart",
         result=result,
         data=result.get("payload"),
         state_snapshot=snapshot,

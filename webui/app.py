@@ -167,6 +167,69 @@ def create_app(engine: MonitorEngine, config_path: Optional[str] = None) -> Fast
                 ),
             )
 
+    @app.delete("/api/openclaw/notification-context")
+    async def api_clear_openclaw_notification_context():
+        """清空当前 OpenClaw 主动通知上下文。"""
+        started_at = time.perf_counter()
+        context = engine.clear_openclaw_notification_context(source="api_clear")
+        dispatch = engine.get_notification_dispatch_status()
+        return _with_meta(
+            {
+                "success": True,
+                "message": "OpenClaw 通知上下文已清空",
+                "context": context,
+                "dispatch": dispatch,
+            },
+            "/api/openclaw/notification-context",
+            started_at,
+            {
+                "context_active": bool(context.get("active")),
+            },
+        )
+
+    @app.post("/api/openclaw/notification-test")
+    async def api_openclaw_notification_test(request: Request):
+        """手动测试主动通知链路，不修改业务状态机。"""
+        started_at = time.perf_counter()
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+
+        try:
+            result = engine.test_notification_dispatch(
+                message=payload.get("message"),
+                severity=payload.get("severity", "warning"),
+                event_type=payload.get("event_type", "notification_test"),
+            )
+            status_code = 200 if result.get("success") else 400
+            body = _with_meta(
+                {
+                    "success": bool(result.get("success")),
+                    **result,
+                },
+                "/api/openclaw/notification-test",
+                started_at,
+                {
+                    "dispatch_ok": bool(result.get("success")),
+                },
+            )
+            if status_code == 200:
+                return body
+            return JSONResponse(status_code=status_code, content=body)
+        except Exception as exc:
+            return JSONResponse(
+                status_code=500,
+                content=_with_meta(
+                    {
+                        "success": False,
+                        "error": f"主动通知测试失败: {exc}",
+                    },
+                    "/api/openclaw/notification-test",
+                    started_at,
+                ),
+            )
+
     @app.get("/api/processes")
     async def api_get_processes(search: str = ""):
         """获取系统进程列表，支持搜索过滤"""

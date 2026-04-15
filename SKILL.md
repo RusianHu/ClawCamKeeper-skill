@@ -14,25 +14,68 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 1. **确认项目根目录**
    - 当前目录应包含 `SKILL.md`、`main.py`、`requirements.txt`、`cli/`、`core/`、`webui/`
 2. **确认本地服务是否在线**
-   - 先跑 `python .\main.py openclaw status`
-   - 若报 `service_unavailable` / `WinError 10061`，说明服务未启动或端口不可达
+   - 优先跑 `python .\main.py status --json`
+   - 若报 `service_unavailable` / `WinError 10061` / `无法连接到服务`，说明服务未启动或端口不可达
 3. **必要时启动服务**
    - `python .\main.py run`
 4. **再做诊断**
-   - `python .\main.py openclaw doctor`
-   - `python .\main.py openclaw action-test --full-check`（仅在需要动作链实测时）
+   - `python .\main.py doctor --json`
+   - `python .\main.py action-test --full-check --json`（仅在需要动作链实测时）
 
 先把服务、状态、动作链搞清楚，再进入更细的通知链或配置问题。
+
+## 服务生命周期命令（必须记清）
+
+这是这个 skill 最容易混淆、也最该写清楚的部分：
+
+### 直接本地服务命令
+
+- **启动服务**
+  - `python .\main.py run`
+- **停止服务**
+  - `python .\main.py service-stop --json`
+- **完全重启服务并等待新代码生效**
+  - `python .\main.py service-restart --json`
+
+### 什么时候用哪个
+
+- 只是让服务跑起来：`run`
+- 明确要求停服务：`service-stop --json`
+- 改了代码/配置后要重新加载并确认新实例接管：`service-restart --json`
+
+### 重要区别
+
+- `run` 是前台常驻服务命令；适合直接启动或配合后台执行
+- `service-stop` / `service-restart` 是**受管生命周期命令**，会处理实例文件、旧进程、监听接管与回滚
+- **改代码后优先用 `service-restart --json` 验证新代码是否真的生效**，不要只补一个新的 `run`
+
+### OpenClaw 适配入口
+
+当需要从 OpenClaw/ACP 上下文调用时，对应桥接命令是：
+
+- `python .\main.py openclaw status`
+- `python .\main.py openclaw arm`
+- `python .\main.py openclaw recover`
+- `python .\main.py openclaw service-stop`
+- `python .\main.py openclaw service-restart`
+
+但在**本仓库本机排障**时，优先还是直接用顶层命令：
+- `python .\main.py status`
+- `python .\main.py doctor`
+- `python .\main.py run`
+- `python .\main.py service-stop --json`
+- `python .\main.py service-restart --json`
 
 ## 稳定边界
 
 - **唯一稳定自动化边界 = CLI JSON 输出**
-- 优先使用：`python .\main.py openclaw ...`
+- 本地仓库排障/验证时，优先使用：`python .\main.py ... --json`
+- OpenClaw / ACP 桥接场景，再使用：`python .\main.py openclaw ...`
 - 不要直接操作 `core/` 内部对象
 - 不要把 WebUI 页面点击当成自动化主路径
 - 读取结果时优先看：`ok`、`message`、`data`、`timings`、`state_snapshot`、`error_type`、`debug`
 
-如果有包装脚本 `scripts/invoke-clawcamkeeper-openclaw.ps1`，可以优先用它；但确认在仓库根目录时，直接 `python .\main.py openclaw ...` 也可以。
+如果有包装脚本 `scripts/invoke-clawcamkeeper-openclaw.ps1`，可以优先用它；但确认在仓库根目录时，直接 `python .\main.py ...` 也可以。
 
 ## 首次分发后的最小配置
 

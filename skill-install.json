@@ -1,0 +1,13 @@
+﻿{
+    "skill_name":  "clawcamkeeper-openclaw",
+    "install_mode":  "self_contained_repository",
+    "source_repo_name":  "ClawCamKeeper-skill",
+    "source_repo_path":  "C:\\Users\\admin\\Desktop\\AI\\ClawCamKeeper-skill",
+    "installed_at":  "2026-04-13T22:23:01.9049851+08:00",
+    "installed_to":  "C:\\Users\\admin\\.openclaw\\workspace\\skills\\clawcamkeeper-openclaw",
+    "notes":  [
+                  "此技能目录包含完整项目代码副本",
+                  "应直接在当前 skill 工作区根目录运行 main.py 与 requirements.txt",
+                  "更新时可重新执行 scripts/install_openclaw_skill.ps1 覆盖同步"
+              ]
+}

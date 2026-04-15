@@ -146,6 +146,7 @@ class ActionChain:
 
         target_names = {item.lower() for item in self._candidate_process_names(exe_name)}
         title_keywords = [item.lower() for item in self._window_title_keywords(exe_name)]
+        host_process_names = {"applicationframehost.exe"}
         results = []
         seen_hwnds = set()
 
@@ -160,12 +161,18 @@ class ActionChain:
                 process_name = process.name()
                 process_name_lower = process_name.lower()
 
-                matched = process_name_lower in target_names
+                matched = False
+                if process_name_lower in target_names:
+                    if process_name_lower in host_process_names and title_keywords:
+                        title_lower = title.lower()
+                        matched = any(keyword in title_lower for keyword in title_keywords)
+                    else:
+                        matched = True
 
                 if not matched and title_keywords and title:
                     title_lower = title.lower()
                     if any(keyword in title_lower for keyword in title_keywords):
-                        matched = process_name_lower == "applicationframehost.exe" or process_name_lower in target_names
+                        matched = process_name_lower in host_process_names or process_name_lower in target_names
 
                 if matched and hwnd not in seen_hwnds:
                     results.append(WindowInfo(hwnd, title, pid, process_name))
@@ -292,6 +299,7 @@ class ActionChain:
             "foreground_before": self._serialize_window_info(self.find_foreground_window()),
             "foreground_after": None,
             "launch_elapsed_ms": 0.0,
+            "launch_results": [],
             "success": False,
             "error": None,
             "total_ms": 0.0,
@@ -330,58 +338,83 @@ class ActionChain:
 
         diagnostics["launch_attempted"] = True
         diagnostics["path"] = "launch_and_wait"
-        launch_started_at = time.perf_counter()
-        success, msg = self.launch_safe_window()
-        diagnostics["launch_elapsed_ms"] = self._elapsed_ms(launch_started_at)
 
-        if success:
+        launch_candidates = []
+        for app_name in [self.primary_safe_app, self.backup_safe_app]:
+            if app_name and app_name not in launch_candidates:
+                launch_candidates.append(app_name)
+
+        for app_name in launch_candidates:
+            launch_started_at = time.perf_counter()
+            launched = self._launch_app(app_name)
+            launch_result = {
+                "app_name": app_name,
+                "launched": launched,
+                "elapsed_ms": self._elapsed_ms(launch_started_at),
+            }
+            diagnostics["launch_results"].append(launch_result)
+            diagnostics["launch_elapsed_ms"] += launch_result["elapsed_ms"]
+
+            if not launched:
+                self._safe_window_status[app_name] = False
+                continue
+
             if not HAS_PSUTIL:
+                self._safe_window_status[app_name] = True
+                diagnostics["target_app"] = app_name
                 diagnostics["success"] = True
-                diagnostics["target_app"] = self.primary_safe_app
                 diagnostics["foreground_after"] = self._serialize_window_info(self.find_foreground_window())
                 diagnostics["total_ms"] = self._elapsed_ms(started_at)
                 self._last_switch_diagnostics = diagnostics
+                msg = f"已启动安全窗口: {app_name}"
                 logger.info(f"{msg}，路径=launch_without_psutil，总耗时={diagnostics['total_ms']}ms")
                 return True, msg, diagnostics
 
-            for app_name in [self.primary_safe_app, self.backup_safe_app]:
-                window, wait_details = self._wait_for_window_details(app_name)
-                diagnostics["waits"].append(wait_details)
-                if window:
-                    success, bring_details = self._bring_window_to_front_detailed(window.hwnd)
-                    bring_details.update(
-                        {
-                            "app_name": app_name,
-                            "window": self._serialize_window_info(window),
-                        }
-                    )
-                    diagnostics["bring_to_front"].append(bring_details)
-                    if success:
-                        self._safe_window_status[app_name] = True
-                        diagnostics["target_app"] = app_name
-                        diagnostics["success"] = True
-                        diagnostics["foreground_after"] = self._serialize_window_info(self.find_foreground_window())
-                        diagnostics["total_ms"] = self._elapsed_ms(started_at)
-                        self._last_switch_diagnostics = diagnostics
-                        success_msg = f"已启动并切换到: {app_name}"
-                        logger.info(f"{success_msg}，路径=launch_and_wait，总耗时={diagnostics['total_ms']}ms")
-                        return True, success_msg, diagnostics
+            window, wait_details = self._wait_for_window_details(app_name)
+            diagnostics["waits"].append(wait_details)
+            if not window:
+                self._safe_window_status[app_name] = False
+                logger.warning(f"安全窗口 {app_name} 启动后未等到窗口，尝试下一个候选")
+                continue
 
-            foreground_after = self.find_foreground_window()
-            if foreground_after and foreground_after.exe_name:
-                for app_name in [self.primary_safe_app, self.backup_safe_app]:
-                    if foreground_after.exe_name.lower() == app_name.lower():
-                        self._safe_window_status[app_name] = True
-                        diagnostics["target_app"] = app_name
-                        diagnostics["success"] = True
-                        diagnostics["foreground_after"] = self._serialize_window_info(foreground_after)
-                        diagnostics["total_ms"] = self._elapsed_ms(started_at)
-                        self._last_switch_diagnostics = diagnostics
-                        success_msg = f"已启动并切换到: {app_name}"
-                        logger.warning(
-                            f"{success_msg}，路径=launch_and_wait_foreground_fallback，总耗时={diagnostics['total_ms']}ms"
-                        )
-                        return True, success_msg, diagnostics
+            success, bring_details = self._bring_window_to_front_detailed(window.hwnd)
+            bring_details.update(
+                {
+                    "app_name": app_name,
+                    "window": self._serialize_window_info(window),
+                }
+            )
+            diagnostics["bring_to_front"].append(bring_details)
+            if success:
+                self._safe_window_status[app_name] = True
+                diagnostics["target_app"] = app_name
+                diagnostics["success"] = True
+                diagnostics["foreground_after"] = self._serialize_window_info(self.find_foreground_window())
+                diagnostics["total_ms"] = self._elapsed_ms(started_at)
+                self._last_switch_diagnostics = diagnostics
+                success_msg = f"已启动并切换到: {app_name}"
+                logger.info(f"{success_msg}，路径=launch_and_wait，总耗时={diagnostics['total_ms']}ms")
+                return True, success_msg, diagnostics
+
+            self._safe_window_status[app_name] = False
+
+        foreground_after = self.find_foreground_window()
+        if foreground_after and foreground_after.exe_name:
+            foreground_name = foreground_after.exe_name.lower()
+            for app_name in launch_candidates:
+                candidate_names = {item.lower() for item in self._candidate_process_names(app_name)}
+                if foreground_name in candidate_names:
+                    self._safe_window_status[app_name] = True
+                    diagnostics["target_app"] = app_name
+                    diagnostics["success"] = True
+                    diagnostics["foreground_after"] = self._serialize_window_info(foreground_after)
+                    diagnostics["total_ms"] = self._elapsed_ms(started_at)
+                    self._last_switch_diagnostics = diagnostics
+                    success_msg = f"已启动并切换到: {app_name}"
+                    logger.warning(
+                        f"{success_msg}，路径=launch_and_wait_foreground_fallback，总耗时={diagnostics['total_ms']}ms"
+                    )
+                    return True, success_msg, diagnostics
 
         self._last_error = "无法切换到安全窗口"
         diagnostics["error"] = self._last_error

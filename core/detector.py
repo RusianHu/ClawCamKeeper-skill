@@ -68,6 +68,14 @@ class Detector:
         self.camera_backend = cam_config.get("backend", "auto")
         self.max_read_failures = cam_config.get("max_read_failures", 30)
         self.probe_frames = cam_config.get("probe_frames", 5)
+        self.quick_probe_frames = cam_config.get("quick_probe_frames", 1)
+        quick_backend_order = cam_config.get("quick_probe_backend_order")
+        if quick_backend_order is None:
+            quick_backend_order = ["CAP_ANY"]
+        self.quick_probe_backend_order = quick_backend_order
+        self.quick_check_max_ms = cam_config.get("quick_check_max_ms", 1500)
+        self.quick_probe_open_budget_ratio = float(cam_config.get("quick_probe_open_budget_ratio", 0.55))
+        self.quick_probe_frame_budget_ms = int(cam_config.get("quick_probe_frame_budget_ms", 120))
         self.confidence_threshold = det_config.get("confidence_threshold", 0.5)
 
         # 风险区域配置
@@ -112,6 +120,8 @@ class Detector:
                 "attempts": [],
                 "success": False,
                 "last_probe_frames": self.probe_frames,
+                "last_check_ms": 0.0,
+                "last_check_mode": None,
             },
             "frame": {
                 "last_read_ms": 0.0,
@@ -174,8 +184,27 @@ class Detector:
             "perf": self._snapshot_perf(),
         }
 
-    def _get_backend_candidates(self) -> list[tuple[str, Optional[int]]]:
+    def _get_backend_candidates(self, quick: bool = False) -> list[tuple[str, Optional[int]]]:
         """获取摄像头后端候选列表"""
+        if quick:
+            requested = self.quick_probe_backend_order or ["CAP_ANY"]
+            normalized = []
+            seen = set()
+            for item in requested:
+                backend_name = str(item).upper()
+                attr_name = backend_name if backend_name.startswith("CAP_") else f"CAP_{backend_name}"
+                if attr_name in seen:
+                    continue
+                seen.add(attr_name)
+                if attr_name == "CAP_ANY":
+                    normalized.append(("CAP_ANY", None))
+                    continue
+                backend_value = getattr(cv2, attr_name, None)
+                if backend_value is not None:
+                    normalized.append((attr_name, backend_value))
+            if normalized:
+                return normalized
+
         if self.camera_backend != "auto":
             backend_name = str(self.camera_backend).upper()
             attr_name = backend_name if backend_name.startswith("CAP_") else f"CAP_{backend_name}"
@@ -200,33 +229,60 @@ class Detector:
             normalized.append((name, backend))
         return normalized
 
-    def _configure_capture(self, cap: cv2.VideoCapture):
+    def _configure_capture(self, cap: cv2.VideoCapture, *, minimal: bool = False):
         """配置摄像头参数"""
+        if minimal:
+            if hasattr(cv2, "CAP_PROP_BUFFERSIZE"):
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            return
+
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_height)
         cap.set(cv2.CAP_PROP_FPS, self.fps)
         if hasattr(cv2, "CAP_PROP_BUFFERSIZE"):
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-    def _probe_capture(self, cap: cv2.VideoCapture) -> bool:
+    def _probe_capture(
+        self,
+        cap: cv2.VideoCapture,
+        probe_frames: Optional[int] = None,
+        *,
+        quick: bool = False,
+        budget_ms: Optional[float] = None,
+    ) -> bool:
         """通过多次预热读帧验证摄像头稳定性"""
+        frames = max(1, int(probe_frames or self.probe_frames))
         success_count = 0
-        required_success = 1 if self.probe_frames <= 2 else 2
+        required_success = 1 if frames <= 2 else 2
+        sleep_s = 0.01 if quick else 0.05
+        probe_started_at = time.perf_counter()
 
-        for _ in range(self.probe_frames):
+        for _ in range(frames):
+            if budget_ms is not None and self._elapsed_ms(probe_started_at) >= budget_ms:
+                break
             ret, frame = cap.read()
             if ret and frame is not None:
                 success_count += 1
-            time.sleep(0.05)
+                if quick:
+                    return True
+            if budget_ms is not None and self._elapsed_ms(probe_started_at) >= budget_ms:
+                break
+            time.sleep(sleep_s)
 
         return success_count >= required_success
 
-    def _open_capture(self) -> bool:
+    def _open_capture(self, *, quick: bool = False) -> bool:
         """尝试使用候选后端打开摄像头"""
         started_at = time.perf_counter()
         attempts = []
+        probe_frames = self.quick_probe_frames if quick else self.probe_frames
+        budget_ms = self.quick_check_max_ms if quick else None
 
-        for backend_name, backend in self._get_backend_candidates():
+        for backend_name, backend in self._get_backend_candidates(quick=quick):
+            if budget_ms is not None and self._elapsed_ms(started_at) >= budget_ms:
+                logger.warning(f"摄像头快速探测达到预算上限: {budget_ms}ms")
+                break
+
             attempt_started_at = time.perf_counter()
             cap = None
             attempt_info = {
@@ -234,9 +290,12 @@ class Detector:
                 "opened": False,
                 "probe_success": False,
                 "elapsed_ms": 0.0,
+                "mode": "quick" if quick else "full",
             }
             try:
+                open_started_at = time.perf_counter()
                 cap = cv2.VideoCapture(self.device_index) if backend is None else cv2.VideoCapture(self.device_index, backend)
+                attempt_info["open_ms"] = self._elapsed_ms(open_started_at)
                 if not cap or not cap.isOpened():
                     if cap:
                         cap.release()
@@ -245,11 +304,34 @@ class Detector:
                     continue
 
                 attempt_info["opened"] = True
-                self._configure_capture(cap)
-                time.sleep(0.2)
+                configure_started_at = time.perf_counter()
+                self._configure_capture(cap, minimal=quick)
+                attempt_info["configure_mode"] = "minimal" if quick else "full"
+                attempt_info["configure_ms"] = self._elapsed_ms(configure_started_at)
 
+                warmup_sleep_s = 0.02 if quick else 0.12
+                warmup_started_at = time.perf_counter()
+                time.sleep(warmup_sleep_s)
+                attempt_info["warmup_ms"] = self._elapsed_ms(warmup_started_at)
+
+                if quick and budget_ms is not None:
+                    open_budget_ms = max(1.0, budget_ms * self.quick_probe_open_budget_ratio)
+                    if float(attempt_info.get("open_ms") or 0.0) >= open_budget_ms:
+                        attempt_info["probe_skipped"] = True
+                        attempt_info["probe_skip_reason"] = "open_budget_exhausted"
+                        attempt_info["elapsed_ms"] = self._elapsed_ms(attempt_started_at)
+                        cap.release()
+                        attempts.append(attempt_info)
+                        continue
+
+                probe_budget_ms = self.quick_probe_frame_budget_ms if quick else None
                 probe_started_at = time.perf_counter()
-                probe_success = self._probe_capture(cap)
+                probe_success = self._probe_capture(
+                    cap,
+                    probe_frames=probe_frames,
+                    quick=quick,
+                    budget_ms=probe_budget_ms,
+                )
                 attempt_info["probe_ms"] = self._elapsed_ms(probe_started_at)
                 attempt_info["probe_success"] = probe_success
 
@@ -268,7 +350,7 @@ class Detector:
                         last_backend=backend_name,
                         attempts=attempts,
                         success=True,
-                        last_probe_frames=self.probe_frames,
+                        last_probe_frames=probe_frames,
                     )
                     logger.info(
                         f"摄像头已打开: {self.frame_width}x{self.frame_height}@{self.fps}fps, "
@@ -291,34 +373,45 @@ class Detector:
         self.cap = None
         self._camera_runtime_available = False
         self._opened_backend = "unavailable"
-        self._last_camera_error = f"无法打开摄像头 (设备索引: {self.device_index})"
+        suffix = " (快速探测)" if quick else ""
+        self._last_camera_error = f"无法打开摄像头{suffix} (设备索引: {self.device_index})"
         self._update_perf(
             "open_capture",
             last_total_ms=self._elapsed_ms(started_at),
             last_backend=None,
             attempts=attempts,
             success=False,
-            last_probe_frames=self.probe_frames,
+            last_probe_frames=probe_frames,
         )
         return False
 
-    def is_camera_available(self) -> bool:
+    def is_camera_available(self, quick: bool = False) -> bool:
         """检查摄像头是否可用"""
         started_at = time.perf_counter()
+        previous_cap = self.cap
         try:
-            success = self._open_capture()
+            success = self._open_capture(quick=quick)
             if self.cap:
                 self.cap.release()
                 self.cap = None
+            if previous_cap is not None:
+                self.cap = previous_cap
             self._camera_runtime_available = success
             with self._perf_lock:
                 self._perf["open_capture"]["last_check_ms"] = self._elapsed_ms(started_at)
+                self._perf["open_capture"]["last_check_mode"] = "quick" if quick else "full"
             return success
         except Exception as e:
             self._last_camera_error = str(e)
             logger.error(f"摄像头检查失败: {e}")
+            if self.cap:
+                self.cap.release()
+                self.cap = None
+            if previous_cap is not None:
+                self.cap = previous_cap
             with self._perf_lock:
                 self._perf["open_capture"]["last_check_ms"] = self._elapsed_ms(started_at)
+                self._perf["open_capture"]["last_check_mode"] = "quick" if quick else "full"
             return False
 
     def start(self):

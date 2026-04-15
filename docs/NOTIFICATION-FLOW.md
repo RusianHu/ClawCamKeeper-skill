@@ -43,8 +43,6 @@
 - 是否启用通知
 - 默认账号
 
-> 分发到 GitHub 的仓库时，`routes` / `fallback` 应保持为**通用默认值或空占位**，不要把自己的私聊目标、群目标、open_id、account 等本机路由直接提交进去。
-
 ### 运行时上下文（不建议写死进配置文件）
 - `session_key`
 - `session_label`

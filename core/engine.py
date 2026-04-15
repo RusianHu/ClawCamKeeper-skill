@@ -7,6 +7,7 @@ from copy import deepcopy
 import json
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 from datetime import datetime
@@ -47,6 +48,9 @@ class MonitorEngine:
     监控引擎
     负责整合所有组件，实现完整的监控闭环
     """
+
+    _RUNTIME_DIR = Path(tempfile.gettempdir()) / "clawcamkeeper-openclaw"
+    _NOTIFICATION_CONTEXT_FILE = _RUNTIME_DIR / "notification-context.json"
 
     def __init__(self, config: dict):
         self.config = normalize_config(config)
@@ -89,6 +93,7 @@ class MonitorEngine:
             "registered_at": None,
             "expires_at": None,
         }
+        self._restore_notification_context()
         self._last_notification_dispatch_result: dict[str, Any] = {
             "ok": None,
             "status": "idle",
@@ -122,6 +127,14 @@ class MonitorEngine:
             "backend": None,
             "last_success_time": None,
             "source": "uninitialized",
+        }
+        self._last_camera_probe_cache = {
+            "available": None,
+            "status": None,
+            "source": None,
+            "quick": None,
+            "captured_at": 0.0,
+            "ttl_s": 0.0,
         }
 
         # 注册状态变化监听
@@ -205,7 +218,7 @@ class MonitorEngine:
         }
         return perf
 
-    def _probe_camera_availability(self, source: str = "runtime_probe") -> tuple[bool, dict]:
+    def _probe_camera_availability(self, source: str = "runtime_probe", quick: bool = False) -> tuple[bool, dict]:
         """探测摄像头可用性；检测器运行中时直接复用运行时状态"""
         if self.detector:
             camera_status = {
@@ -214,32 +227,85 @@ class MonitorEngine:
             }
             return camera_status.get("runtime_available", False), camera_status
 
+        camera_config = self.config.get("camera", {}) if isinstance(self.config, dict) else {}
+        quick_probe_cache_ttl_s = float(camera_config.get("quick_probe_cache_ttl_s", 10.0))
+        now = time.perf_counter()
+        cache = self._last_camera_probe_cache
+        if (
+            quick
+            and quick_probe_cache_ttl_s > 0
+            and cache.get("quick") is True
+            and cache.get("available") is False
+            and isinstance(cache.get("status"), dict)
+            and (now - float(cache.get("captured_at") or 0.0)) <= quick_probe_cache_ttl_s
+        ):
+            cached_status = {
+                **cache["status"],
+                "source": source,
+                "probe_mode": "quick",
+                "cached": True,
+                "cache_age_ms": round((now - float(cache.get("captured_at") or 0.0)) * 1000, 2),
+                "cache_ttl_s": quick_probe_cache_ttl_s,
+                "cache_original_source": cache.get("source"),
+            }
+            return False, cached_status
+
         test_detector = Detector(self.config)
-        camera_available = test_detector.is_camera_available()
+        camera_available = test_detector.is_camera_available(quick=quick)
         camera_status = {
             **test_detector.get_camera_status(),
             "source": source,
+            "probe_mode": "quick" if quick else "full",
+            "cached": False,
         }
+        if quick and quick_probe_cache_ttl_s > 0:
+            self._last_camera_probe_cache = {
+                "available": camera_available,
+                "status": dict(camera_status),
+                "source": source,
+                "quick": True,
+                "captured_at": now,
+                "ttl_s": quick_probe_cache_ttl_s,
+            }
+        elif not quick:
+            self._last_camera_probe_cache = {
+                "available": None,
+                "status": None,
+                "source": None,
+                "quick": None,
+                "captured_at": 0.0,
+                "ttl_s": 0.0,
+            }
         return camera_available, camera_status
 
-    def _refresh_component_availability(self, camera_source: str = "runtime_refresh") -> dict:
+    def _refresh_component_availability(self, camera_source: str = "runtime_refresh", quick_camera_probe: bool = False) -> dict:
         """刷新摄像头、动作链路与安全窗口可用性"""
         started_at = time.perf_counter()
-        camera_available, camera_status = self._probe_camera_availability(camera_source)
+
+        camera_started_at = time.perf_counter()
+        camera_available, camera_status = self._probe_camera_availability(camera_source, quick=quick_camera_probe)
+        camera_elapsed_ms = self._elapsed_ms(camera_started_at)
         self._last_camera_probe_status = camera_status
 
+        action_started_at = time.perf_counter()
         action_chain_available = self.action_chain.is_available()
+        action_elapsed_ms = self._elapsed_ms(action_started_at)
+
+        safe_window_started_at = time.perf_counter()
         safe_window_available = (
             self.action_chain.check_safe_window_available()
             if action_chain_available
             else False
         )
+        safe_window_elapsed_ms = self._elapsed_ms(safe_window_started_at)
 
+        state_update_started_at = time.perf_counter()
         self.state_machine.update_availability(
             camera=camera_available,
             action_chain=action_chain_available,
             safe_window=safe_window_available,
         )
+        state_update_elapsed_ms = self._elapsed_ms(state_update_started_at)
 
         availability = {
             "camera_available": camera_available,
@@ -247,6 +313,10 @@ class MonitorEngine:
             "action_chain_available": action_chain_available,
             "safe_window_available": safe_window_available,
             "timings": {
+                "camera_ms": camera_elapsed_ms,
+                "action_chain_ms": action_elapsed_ms,
+                "safe_window_ms": safe_window_elapsed_ms,
+                "state_update_ms": state_update_elapsed_ms,
                 "total_ms": self._elapsed_ms(started_at),
             },
         }
@@ -374,6 +444,61 @@ class MonitorEngine:
         normalized = str(value).strip()
         return normalized or None
 
+    @classmethod
+    def _notification_context_file(cls) -> Path:
+        cls._RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+        return cls._NOTIFICATION_CONTEXT_FILE
+
+    def _persist_notification_context(self) -> None:
+        try:
+            path = self._notification_context_file()
+            with self._notification_dispatch_lock:
+                payload = deepcopy(self._notification_context)
+            path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception as exc:
+            logger.warning(f"持久化通知上下文失败: {exc}")
+
+    def _restore_notification_context(self) -> None:
+        try:
+            path = self._notification_context_file()
+            if not path.exists():
+                return
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                return
+
+            restored = {
+                "session_key": self._normalize_context_value(payload.get("session_key") or payload.get("sessionKey")),
+                "session_label": self._normalize_context_value(payload.get("session_label") or payload.get("sessionLabel")),
+                "channel": self._normalize_context_value(payload.get("channel")),
+                "target": self._normalize_context_value(payload.get("target")),
+                "account": self._normalize_context_value(payload.get("account")),
+                "source": self._normalize_context_value(payload.get("source")) or "restore",
+                "registered_at": self._normalize_context_value(payload.get("registered_at")),
+                "expires_at": payload.get("expires_at"),
+            }
+            if restored["channel"]:
+                restored["channel"] = restored["channel"].lower()
+            expires_at = restored.get("expires_at")
+            if expires_at is not None:
+                try:
+                    expires_at = float(expires_at)
+                except (TypeError, ValueError):
+                    expires_at = None
+                restored["expires_at"] = expires_at
+
+            self._notification_context = restored
+        except Exception as exc:
+            logger.warning(f"恢复通知上下文失败: {exc}")
+
+    def _clear_persisted_notification_context(self) -> None:
+        try:
+            path = self._notification_context_file()
+            if path.exists():
+                path.unlink()
+        except Exception as exc:
+            logger.warning(f"清理通知上下文持久化文件失败: {exc}")
+
     def _get_notification_context_snapshot(self) -> dict[str, Any]:
         with self._notification_dispatch_lock:
             context = deepcopy(self._notification_context)
@@ -410,7 +535,23 @@ class MonitorEngine:
 
         with self._notification_dispatch_lock:
             self._notification_context = normalized
+        self._persist_notification_context()
 
+        return self._get_notification_context_snapshot()
+
+    def clear_openclaw_notification_context(self, source: str = "api") -> dict[str, Any]:
+        with self._notification_dispatch_lock:
+            self._notification_context = {
+                "session_key": None,
+                "session_label": None,
+                "channel": None,
+                "target": None,
+                "account": None,
+                "source": self._normalize_context_value(source) or "api",
+                "registered_at": datetime.now().isoformat(),
+                "expires_at": None,
+            }
+        self._clear_persisted_notification_context()
         return self._get_notification_context_snapshot()
 
     def get_openclaw_notification_context(self) -> dict[str, Any]:
@@ -419,6 +560,56 @@ class MonitorEngine:
     def get_notification_dispatch_status(self) -> dict[str, Any]:
         with self._notification_dispatch_lock:
             return deepcopy(self._last_notification_dispatch_result)
+
+    def test_notification_dispatch(
+        self,
+        *,
+        message: Optional[str] = None,
+        severity: str = "warning",
+        event_type: str = "notification_test",
+    ) -> dict[str, Any]:
+        state = self.state_machine.state
+        notification = {
+            "id": None,
+            "timestamp": datetime.now().isoformat(),
+            "event_type": event_type,
+            "severity": severity,
+            "message": message or "这是 ClawCamKeeper 主动通知链路测试消息",
+            "state_summary": {
+                "arm_state": state.arm_state.value,
+                "alert_phase": state.alert_phase.value,
+                "is_locked": state.is_locked,
+            },
+            "delivery": {
+                "push": True,
+                "severity": severity,
+                "dedupe_key": f"notification_test:{event_type}",
+            },
+        }
+        self._dispatch_notification(notification)
+        dispatch = deepcopy(notification.get("delivery", {}).get("dispatch") or self.get_notification_dispatch_status())
+        result = {
+            "success": bool(dispatch.get("ok")),
+            "message": dispatch.get("message") or "通知链路测试完成",
+            "dispatch": dispatch,
+            "notification": {
+                "event_type": notification["event_type"],
+                "severity": notification["severity"],
+                "message": notification["message"],
+            },
+            "timings": {
+                "total_ms": 0.0,
+            },
+        }
+        self._add_event(
+            "notification_test",
+            result["message"],
+            {
+                "notification": result["notification"],
+                "dispatch": dispatch,
+            },
+        )
+        return result
 
     def _resolve_notification_route(self) -> tuple[Optional[dict[str, Any]], Optional[str]]:
         active_context = self._get_active_notification_context()
@@ -916,18 +1107,23 @@ class MonitorEngine:
         Returns: (success, message)
         """
         started_at = time.perf_counter()
-        availability = self._refresh_component_availability(camera_source="initialize_probe")
+        availability = self._refresh_component_availability(
+            camera_source="initialize_probe",
+            quick_camera_probe=True,
+        )
         camera_available = availability["camera_available"]
         action_available = availability["action_chain_available"]
         safe_window_available = availability["safe_window_available"]
 
-        issues = []
         warnings = []
+        degraded_reasons = []
 
         if not camera_available:
-            issues.append("摄像头不可用，无法武装")
+            warnings.append("摄像头不可用，当前不可武装")
+            degraded_reasons.append("camera_unavailable")
         if not action_available:
-            issues.append("Windows 窗口控制不可用（pywin32 未安装）")
+            warnings.append("Windows 窗口控制不可用（pywin32 未安装）")
+            degraded_reasons.append("action_chain_unavailable")
 
         safe_window_status = self.action_chain.get_safe_window_status()
         primary_ok = safe_window_status.get(self.action_chain.primary_safe_app, False)
@@ -935,9 +1131,10 @@ class MonitorEngine:
 
         if not primary_ok and not backup_ok:
             if not safe_window_available:
-                issues.append(
+                warnings.append(
                     f"主备安全窗口均不可用（主: {self.action_chain.primary_safe_app}, 备: {self.action_chain.backup_safe_app}）"
                 )
+                degraded_reasons.append("safe_window_unavailable")
             else:
                 warnings.append("安全窗口未运行，但可在需要时启动")
         elif not primary_ok:
@@ -945,25 +1142,27 @@ class MonitorEngine:
 
         total_ms = self._elapsed_ms(started_at)
         self._update_engine_perf(last_initialize_ms=total_ms)
-        if issues:
-            return False, f"初始化失败: {', '.join(issues)}"
 
+        init_event_type = "init_degraded" if degraded_reasons else "init"
+        init_message = "引擎初始化完成（降级模式）" if degraded_reasons else "引擎初始化完成"
         self._add_event(
-            "init",
-            "引擎初始化完成",
+            init_event_type,
+            init_message,
             {
                 "camera": camera_available,
                 "action_chain": action_available,
                 "safe_window_primary": primary_ok,
                 "safe_window_backup": backup_ok,
                 "warnings": warnings,
+                "degraded": bool(degraded_reasons),
+                "degraded_reasons": degraded_reasons,
                 "timings": {
                     "total_ms": total_ms,
                 },
             },
         )
 
-        msg = "引擎初始化完成"
+        msg = init_message
         if warnings:
             msg += f" (警告: {', '.join(warnings)})"
 
@@ -972,7 +1171,7 @@ class MonitorEngine:
     def arm(self) -> tuple[bool, str]:
         """武装系统"""
         started_at = time.perf_counter()
-        availability = self._refresh_component_availability(camera_source="arm_probe")
+        availability = self._refresh_component_availability(camera_source="arm_probe", quick_camera_probe=False)
         state = self.state_machine.state
         action_chain_available = availability["action_chain_available"]
         safe_window_available = availability["safe_window_available"]
@@ -1219,7 +1418,10 @@ class MonitorEngine:
         state = self.state_machine.state
 
         if full_check:
-            availability = self._refresh_component_availability(camera_source="manual_test_probe")
+            availability = self._refresh_component_availability(
+                camera_source="manual_test_probe",
+                quick_camera_probe=True,
+            )
             probe_mode = "full"
         else:
             action_chain_available = self.action_chain.is_available()
@@ -1466,6 +1668,15 @@ class MonitorEngine:
             }
         else:
             status["camera_runtime_status"] = dict(self._last_camera_probe_status)
+
+        if isinstance(status.get("camera_runtime_status"), dict):
+            status["camera_runtime_status"].setdefault("availability_timings", {})
+            status["camera_runtime_status"]["availability_timings"].update(
+                {
+                    "last_refresh_ms": self._perf["engine"].get("last_availability_refresh_ms", 0.0),
+                    "last_refresh_source": self._perf["engine"].get("last_availability_source"),
+                }
+            )
 
         status["camera_available"] = (
             status["camera_available"]

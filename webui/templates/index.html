@@ -75,22 +75,23 @@
         }
 
         .container {
-            max-width: 1360px;
+            max-width: 1380px;
             margin: 0 auto;
-            padding: 24px;
+            padding: 14px 16px 18px;
         }
 
         header {
             position: relative;
             display: grid;
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 18px;
-            margin-bottom: 24px;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            margin-bottom: 10px;
         }
 
-        @media (max-width: 980px) {
+        @media (min-width: 1120px) {
             header {
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.55fr);
+                align-items: stretch;
             }
         }
 
@@ -116,14 +117,14 @@
         }
 
         .hero {
-            padding: 28px 30px;
+            padding: 10px 14px;
             background:
                 radial-gradient(circle at 0% 0%, rgba(118, 240, 255, 0.12), transparent 28%),
                 linear-gradient(135deg, rgba(13, 18, 28, 0.98), rgba(18, 24, 35, 0.92));
         }
 
         .meta-panel {
-            padding: 24px;
+            padding: 10px 12px;
             background:
                 radial-gradient(circle at 100% 0%, rgba(179, 140, 255, 0.12), transparent 34%),
                 linear-gradient(180deg, rgba(12, 17, 27, 0.98), rgba(18, 24, 35, 0.92));
@@ -131,69 +132,69 @@
 
         .eyebrow {
             color: var(--accent-cyan);
-            font-size: 0.76rem;
-            letter-spacing: 0.34em;
+            font-size: 0.62rem;
+            letter-spacing: 0.22em;
             text-transform: uppercase;
-            margin-bottom: 12px;
+            margin-bottom: 6px;
         }
 
         .logo {
             display: flex;
             align-items: center;
-            gap: 14px;
-            font-size: clamp(1.9rem, 3.4vw, 3.1rem);
-            letter-spacing: 0.16em;
+            gap: 10px;
+            font-size: clamp(1.2rem, 2.1vw, 1.75rem);
+            letter-spacing: 0.1em;
             font-weight: 700;
             text-shadow: 0 0 22px rgba(118, 240, 255, 0.16);
         }
 
         .logo-badge {
-            width: 58px;
-            height: 58px;
+            width: 38px;
+            height: 38px;
             display: grid;
             place-items: center;
-            border-radius: 16px;
+            border-radius: 12px;
             border: 1px solid rgba(118, 240, 255, 0.24);
             background: linear-gradient(135deg, rgba(118, 240, 255, 0.14), rgba(100, 163, 255, 0.06));
             box-shadow: var(--glow-blue);
-            font-size: 1.8rem;
+            font-size: 1.15rem;
         }
 
         .subtitle {
-            margin-top: 12px;
+            margin-top: 6px;
             color: var(--text-secondary);
-            font-size: 0.95rem;
-            line-height: 1.8;
+            font-size: 0.76rem;
+            line-height: 1.45;
             max-width: 760px;
         }
 
         .hero-tags {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 20px;
+            gap: 6px;
+            margin-top: 10px;
         }
 
         .hero-tag {
-            padding: 7px 12px;
+            padding: 4px 8px;
             border-radius: 999px;
             border: 1px solid rgba(118, 240, 255, 0.16);
             background: rgba(118, 240, 255, 0.06);
             color: var(--accent-cyan);
-            font-size: 0.74rem;
-            letter-spacing: 0.08em;
+            font-size: 0.62rem;
+            letter-spacing: 0.04em;
             text-transform: uppercase;
         }
 
         .meta-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 14px;
-            margin-top: 16px;
+            gap: 8px;
+            margin-top: 8px;
         }
 
         .meta-item {
-            padding: 14px;
+            padding: 10px;
             border-radius: var(--radius-md);
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid rgba(255, 255, 255, 0.05);
@@ -201,23 +202,23 @@
 
         .meta-label {
             color: var(--text-muted);
-            font-size: 0.72rem;
-            letter-spacing: 0.18em;
+            font-size: 0.64rem;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .meta-value {
             color: var(--text-primary);
-            font-size: 0.96rem;
-            line-height: 1.5;
+            font-size: 0.84rem;
+            line-height: 1.35;
         }
 
         .main-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-            gap: 20px;
-            margin-bottom: 20px;
+            grid-template-columns: minmax(0, 1.42fr) minmax(300px, 0.58fr);
+            gap: 12px;
+            margin-bottom: 14px;
         }
 
         @media (max-width: 1080px) {
@@ -228,11 +229,11 @@
 
         .stack {
             display: grid;
-            gap: 20px;
+            gap: 12px;
         }
 
         .card {
-            padding: 22px;
+            padding: 16px;
         }
 
         .card.danger::before {
@@ -270,7 +271,7 @@
         .status-shell {
             display: grid;
             grid-template-columns: auto 1fr;
-            gap: 18px;
+            gap: 14px;
             align-items: center;
         }
 
@@ -286,12 +287,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 14px;
+            padding: 8px;
         }
 
         .status-circle {
-            width: 126px;
-            height: 126px;
+            width: 110px;
+            height: 110px;
             border-radius: 50%;
             display: flex;
             flex-direction: column;
@@ -304,8 +305,8 @@
             transition: all 0.3s ease;
         }
 
-        .status-circle .icon { font-size: 2.5rem; margin-bottom: 6px; }
-        .status-circle .label { font-size: 0.8rem; color: var(--text-secondary); letter-spacing: 0.14em; text-transform: uppercase; }
+        .status-circle .icon { font-size: 2.2rem; margin-bottom: 4px; }
+        .status-circle .label { font-size: 0.74rem; color: var(--text-secondary); letter-spacing: 0.12em; text-transform: uppercase; }
         .status-circle.unarmed { border-color: rgba(144, 160, 189, 0.5); }
         .status-circle.armed { border-color: var(--accent-green); box-shadow: var(--glow-green); }
         .status-circle.danger_locked { border-color: var(--accent-red); box-shadow: var(--glow-red); animation: pulse-red 1.5s ease-in-out infinite; }
@@ -323,7 +324,7 @@
         .summary-strip {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px;
+            gap: 8px;
         }
 
         @media (max-width: 620px) {
@@ -333,7 +334,7 @@
         }
 
         .summary-cell {
-            padding: 14px;
+            padding: 12px;
             border-radius: var(--radius-md);
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid rgba(255,255,255,0.05);
@@ -436,14 +437,159 @@
         .btn.secondary:hover { background: rgba(118, 240, 255, 0.08); }
         .btn.primary-save { color: var(--accent-green); border-color: rgba(44, 255, 152, 0.34); }
         .btn.primary-save:hover { background: rgba(44, 255, 152, 0.08); box-shadow: var(--glow-green); }
+        .btn.primary-save.is-dirty {
+            border-color: rgba(255, 184, 77, 0.38);
+            color: var(--accent-yellow);
+            box-shadow: 0 0 0 1px rgba(255, 184, 77, 0.08);
+        }
+
+        .config-callouts {
+            display: grid;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .config-callout {
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.07);
+            background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+            padding: 14px 16px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .config-callout strong {
+            color: var(--text-primary);
+            font-size: 0.84rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .config-callout div {
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            line-height: 1.8;
+        }
+
+        .config-callout.warning {
+            border-color: rgba(255, 184, 77, 0.24);
+            background: linear-gradient(180deg, rgba(255, 184, 77, 0.08), rgba(255, 184, 77, 0.03));
+        }
+
+        .config-callout.info {
+            border-color: rgba(118, 240, 255, 0.2);
+            background: linear-gradient(180deg, rgba(118, 240, 255, 0.08), rgba(118, 240, 255, 0.03));
+        }
+
+        .draft-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .draft-title {
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            line-height: 1.5;
+        }
+
+        .draft-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 30px;
+            padding: 0 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.03);
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .draft-badge.active {
+            color: var(--accent-yellow);
+            border-color: rgba(255, 184, 77, 0.28);
+            background: rgba(255, 184, 77, 0.08);
+        }
+
+        .draft-badge.synced {
+            color: var(--accent-green);
+            border-color: rgba(44,255,152,0.24);
+            background: rgba(44,255,152,0.08);
+        }
+
+        .draft-inline-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin: 12px 0;
+        }
+
+        @media (max-width: 520px) {
+            .draft-inline-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .draft-kv {
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.025);
+            display: grid;
+            gap: 6px;
+        }
+
+        .draft-kv strong {
+            color: var(--text-primary);
+            font-size: 0.84rem;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .quick-actions-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .quick-action-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .quick-action-btn {
+            min-height: 36px;
+            padding: 8px 12px;
+            font-size: 0.76rem;
+            letter-spacing: 0.04em;
+        }
+
+        .status-note.compact {
+            font-size: 0.76rem;
+            line-height: 1.75;
+        }
 
         .video-container {
             position: relative;
             background: #000;
             border-radius: 14px;
             overflow: hidden;
-            aspect-ratio: 4 / 3;
+            aspect-ratio: 16 / 9;
+            min-height: min(64vh, 680px);
             border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        @media (max-width: 1080px) {
+            .video-container {
+                min-height: auto;
+                aspect-ratio: 16 / 10;
+            }
         }
 
         .video-container img {
@@ -1221,9 +1367,9 @@
         }
 
         .watch-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 10px;
+            display: none;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
             margin-top: 8px;
         }
 
@@ -1390,6 +1536,57 @@
             color: var(--text-primary);
         }
 
+        .context-console {
+            display: grid;
+            gap: 14px;
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02));
+        }
+
+        .context-console-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        @media (max-width: 720px) {
+            .context-console-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .context-console-item {
+            display: grid;
+            gap: 6px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.025);
+        }
+
+        .context-console-label {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .context-console-value {
+            color: var(--text-primary);
+            font-size: 0.84rem;
+            line-height: 1.65;
+            word-break: break-all;
+        }
+
+        .context-console-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
         .notification.critical {
             border-color: rgba(255,85,119,0.46);
             box-shadow: 0 0 0 1px rgba(255,85,119,0.16), var(--panel-shadow);
@@ -1496,22 +1693,22 @@
     <div class="container">
         <header>
             <section class="hero">
-                <div class="eyebrow">ClawCamKeeper / Local Protection Console</div>
+                <div class="eyebrow">ClawCamKeeper / Live Console</div>
                 <div class="logo">
                     <div class="logo-badge">🛡️</div>
                     <div>CLAWCAMKEEPER</div>
                 </div>
                 <div class="subtitle">
-                    本地优先的工位摸鱼防护控制台。现在不仅能查看状态与武装系统，也能直接在 WebUI 中编辑大部分配置、保存到 YAML、并把可热加载项即时应用到运行中的核心引擎。
+                    首屏优先展示监控画面与保护状态；配置编辑和事件明细放到下方，避免打开页面还得先滚动找画面。
                 </div>
                 <div class="hero-ribbon" id="heroThreatRibbon" data-tone="idle">
                     <span class="hero-ribbon-badge" id="heroThreatBadge">STANDBY</span>
                     <span class="hero-ribbon-copy" id="heroThreatText">本地控制台已上线，等待保护状态同步。</span>
                 </div>
                 <div class="hero-tags">
+                    <span class="hero-tag">Live Feed First</span>
+                    <span class="hero-tag">Context Push</span>
                     <span class="hero-tag">Config Hot Reload</span>
-                    <span class="hero-tag">Detector Restart Aware</span>
-                    <span class="hero-tag">Local Safety First</span>
                 </div>
             </section>
 
@@ -1553,6 +1750,74 @@
         </header>
 
         <div class="main-grid">
+            <div class="stack">
+                <section class="card" id="videoCard">
+                    <div class="card-title">
+                        <span>Vision Feed</span>
+                        <strong>实时监控</strong>
+                    </div>
+                    <div class="video-container">
+                        <img id="videoStream" src="/api/frame" alt="监控画面">
+                        <div class="video-overlay">
+                            <span id="cameraBadge">CAM-01</span>
+                            <span class="rec-indicator" id="recIndicator" style="display:none">
+                                <span class="rec-dot"></span>
+                                <span>REC</span>
+                            </span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card" id="remoteConsoleCard">
+                    <div class="card-title">
+                        <span>OpenClaw / ACP</span>
+                        <strong>远程规则与消息通道</strong>
+                    </div>
+                    <div class="matrix-grid">
+                        <div class="matrix-state">
+                            <div class="matrix-state-title">未武装</div>
+                            <div class="matrix-state-body" id="matrixUnarmed">加载中...</div>
+                        </div>
+                        <div class="matrix-state">
+                            <div class="matrix-state-title">已武装</div>
+                            <div class="matrix-state-body" id="matrixArmed">加载中...</div>
+                        </div>
+                        <div class="matrix-state">
+                            <div class="matrix-state-title">危险锁定</div>
+                            <div class="matrix-state-body" id="matrixDangerLocked">加载中...</div>
+                        </div>
+                    </div>
+                    <div class="status-note" id="sessionPolicyNote">session-label 仅用于会话隔离，不承载业务状态。</div>
+                    <div class="status-note" id="notificationChannelNote">通知通道初始化中...</div>
+                    <div class="context-console" id="notificationContextConsole">
+                        <div class="card-subtitle">运行时通知上下文优先于静态默认路由。这里展示当前 active context、最近一次主动推送状态，并提供最小联调按钮。</div>
+                        <div class="context-console-grid">
+                            <div class="context-console-item">
+                                <span class="context-console-label">Active Context</span>
+                                <span class="context-console-value" id="notifyContextSummary">加载中...</span>
+                            </div>
+                            <div class="context-console-item">
+                                <span class="context-console-label">Last Dispatch</span>
+                                <span class="context-console-value" id="notifyDispatchSummary">加载中...</span>
+                            </div>
+                            <div class="context-console-item">
+                                <span class="context-console-label">Context TTL</span>
+                                <span class="context-console-value" id="notifyContextExpiry">加载中...</span>
+                            </div>
+                            <div class="context-console-item">
+                                <span class="context-console-label">Push Route</span>
+                                <span class="context-console-value" id="notifyRouteSummary">加载中...</span>
+                            </div>
+                        </div>
+                        <div class="context-console-actions">
+                            <button class="btn secondary" type="button" onclick="updateStatus()">🔄 刷新上下文</button>
+                            <button class="btn secondary" type="button" onclick="testNotificationDispatch()">📨 测试通知</button>
+                            <button class="btn recover" type="button" onclick="clearNotificationContext()">🧹 清空上下文</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
             <div class="stack">
                 <section class="card" id="statusCard">
                     <div class="card-title">
@@ -1617,25 +1882,6 @@
                     </div>
                 </section>
 
-                <section class="card" id="videoCard">
-                    <div class="card-title">
-                        <span>Vision Feed</span>
-                        <strong>实时监控</strong>
-                    </div>
-                    <div class="video-container">
-                        <img id="videoStream" src="/api/frame" alt="监控画面">
-                        <div class="video-overlay">
-                            <span id="cameraBadge">CAM-01</span>
-                            <span class="rec-indicator" id="recIndicator" style="display:none">
-                                <span class="rec-dot"></span>
-                                <span>REC</span>
-                            </span>
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            <div class="stack">
                 <section class="card" id="infoCard">
                     <div class="card-title">
                         <span>Health & Links</span>
@@ -1683,29 +1929,6 @@
                     </div>
                 </section>
 
-                <section class="card" id="remoteConsoleCard">
-                    <div class="card-title">
-                        <span>OpenClaw / ACP</span>
-                        <strong>远程规则与消息通道</strong>
-                    </div>
-                    <div class="matrix-grid">
-                        <div class="matrix-state">
-                            <div class="matrix-state-title">未武装</div>
-                            <div class="matrix-state-body" id="matrixUnarmed">加载中...</div>
-                        </div>
-                        <div class="matrix-state">
-                            <div class="matrix-state-title">已武装</div>
-                            <div class="matrix-state-body" id="matrixArmed">加载中...</div>
-                        </div>
-                        <div class="matrix-state">
-                            <div class="matrix-state-title">危险锁定</div>
-                            <div class="matrix-state-body" id="matrixDangerLocked">加载中...</div>
-                        </div>
-                    </div>
-                    <div class="status-note" id="sessionPolicyNote">session-label 仅用于会话隔离，不承载业务状态。</div>
-                    <div class="status-note" id="notificationChannelNote">通知通道初始化中...</div>
-                </section>
-
                 <section class="card" id="eventsCard">
                     <div class="card-title">
                         <span>Event Timeline</span>
@@ -1726,7 +1949,17 @@
                 <strong>配置编辑 / 保存 / 热加载</strong>
             </div>
             <div class="card-subtitle">
-                支持直接编辑大部分 settings.yaml 配置。保存后，能即时生效的字段会立刻应用；涉及检测器重建或服务监听的字段会给出明确提示。
+                这里是直接覆盖磁盘配置的工作台，不是只改前端展示。保存后会写回 <code>settings.yaml</code>，并继续复用现有 <code>/api/config</code> 热加载链路。
+            </div>
+            <div class="config-callouts">
+                <div class="config-callout warning">
+                    <strong>保存会覆盖 settings.yaml</strong>
+                    <div>点击“保存并热加载”后，当前表单里的字段会写回磁盘配置文件。也就是说，这里改的是正式配置，不只是一次性的页面草稿。</div>
+                </div>
+                <div class="config-callout info">
+                    <strong>运行时上下文会覆盖静态通知路由</strong>
+                    <div>这里填写的是默认通知目标；如果当前聊天已经通过 <code>openclaw-context</code> 注册了运行时 channel / target / account / session，运行时上下文会优先于这里的静态默认路由。</div>
+                </div>
             </div>
 
             <div class="config-shell" style="margin-top: 18px;">
@@ -1978,12 +2211,89 @@
 
                 <aside class="config-side">
                     <div class="panel-box">
-                        <h3>配置文件路径</h3>
+                        <h3>保存目标 / 覆盖说明</h3>
                         <div class="path-label" id="configPath">加载中...</div>
                         <div class="config-actions">
                             <button type="button" class="btn primary-save" id="saveConfigBtn" onclick="saveConfig()">💾 保存并热加载</button>
                             <button type="button" class="btn secondary" id="reloadDiskBtn" onclick="reloadConfigFromDisk()">🧲 从磁盘重载</button>
                         </div>
+                        <div class="status-note compact" id="saveActionNote">保存会覆盖 settings.yaml 中对应字段；从磁盘重载会丢弃当前未保存草稿。</div>
+                    </div>
+
+                    <div class="panel-box">
+                        <h3>当前草稿摘要</h3>
+                        <div class="draft-head">
+                            <div>
+                                <div class="meta-label">Draft Status</div>
+                                <div class="draft-title" id="draftSummaryTitle">等待配置载入...</div>
+                            </div>
+                            <span class="draft-badge" id="draftSummaryBadge">LOADING</span>
+                        </div>
+                        <div class="status-note compact" id="draftSummaryLead">载入后会在这里显示：本次保存将覆盖哪些字段、哪些会立即生效、哪些仍需重启服务。</div>
+                        <div class="draft-inline-grid">
+                            <div class="draft-kv">
+                                <span class="meta-label">主 / 备安全窗口</span>
+                                <strong id="draftSafeWindowSummary">-</strong>
+                            </div>
+                            <div class="draft-kv">
+                                <span class="meta-label">风险程序</span>
+                                <strong id="draftRiskAppsSummary">-</strong>
+                            </div>
+                            <div class="draft-kv">
+                                <span class="meta-label">WebUI 监听</span>
+                                <strong id="draftWebuiSummary">-</strong>
+                            </div>
+                            <div class="draft-kv">
+                                <span class="meta-label">通知默认路由</span>
+                                <strong id="draftNotificationSummary">-</strong>
+                            </div>
+                        </div>
+                        <div class="result-block">
+                            <div>
+                                <div class="meta-label">即将覆盖 settings.yaml 的字段</div>
+                                <div class="result-chip-list" id="draftChangedKeysList">
+                                    <span class="result-chip chip-muted">暂无</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="meta-label">预计立即生效</div>
+                                <div class="result-chip-list" id="draftImmediateKeysList">
+                                    <span class="result-chip chip-muted">暂无</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="meta-label">预计重建检测链路后生效</div>
+                                <div class="result-chip-list" id="draftNextDetectionKeysList">
+                                    <span class="result-chip chip-muted">暂无</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="meta-label">预计仍需重启服务</div>
+                                <div class="result-chip-list" id="draftServiceRestartKeysList">
+                                    <span class="result-chip chip-muted">暂无</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="status-note compact" id="draftRouteHint">这里展示的是静态默认路由草稿；如果当前聊天已有运行时上下文注册，它仍会优先于这里的静态默认路由。</div>
+                    </div>
+
+                    <div class="panel-box">
+                        <h3>快速操作</h3>
+                        <div class="quick-actions-grid">
+                            <div class="quick-action-row">
+                                <button type="button" class="btn secondary quick-action-btn" onclick="applyQuickPreset('common-safe-window')">常用安全态</button>
+                                <button type="button" class="btn secondary quick-action-btn" onclick="applyQuickPreset('clear-safe-window')">清空安全窗口</button>
+                            </div>
+                            <div class="quick-action-row">
+                                <button type="button" class="btn secondary quick-action-btn" onclick="applyQuickPreset('local-webui')">回到本机 WebUI</button>
+                                <button type="button" class="btn secondary quick-action-btn" onclick="applyQuickPreset('lan-webui')">局域网调试</button>
+                            </div>
+                            <div class="quick-action-row">
+                                <button type="button" class="btn secondary quick-action-btn" onclick="applyQuickPreset('clear-static-routes')">清空静态通知路由</button>
+                                <button type="button" class="btn secondary quick-action-btn" onclick="revertFormToSavedConfig()">回退到已保存配置</button>
+                            </div>
+                        </div>
+                        <div class="status-note compact">快捷操作只改当前表单草稿；真正写回 <code>settings.yaml</code> 还是要点保存。</div>
                     </div>
 
                     <div class="panel-box">
@@ -2047,6 +2357,41 @@
             full_alert: '🚨 完全报警'
         };
 
+        const CONFIG_FIELD_LABELS = {
+            'safe_window.primary': '主安全窗口',
+            'safe_window.backup': '备选安全窗口',
+            'risk_apps': '风险程序列表',
+            'detection.pre_alert_frames': '无感预备帧数',
+            'detection.full_alert_frames': '完全报警帧数',
+            'detection.confidence_threshold': '检测置信阈值',
+            'detection.risk_zone.x': '风险区域 X',
+            'detection.risk_zone.y': '风险区域 Y',
+            'detection.risk_zone.width': '风险区域宽度',
+            'detection.risk_zone.height': '风险区域高度',
+            'camera.device_index': '摄像头设备索引',
+            'camera.fps': '摄像头 FPS',
+            'camera.frame_width': '摄像头宽度',
+            'camera.frame_height': '摄像头高度',
+            'logging.file': '日志文件',
+            'logging.level': '日志级别',
+            'webui.allow_lan': 'WebUI 局域网访问',
+            'webui.host': 'WebUI Host',
+            'webui.port': 'WebUI Port',
+            'webui.debug': 'WebUI Debug',
+            'openclaw.notifications.enabled': '主动通知开关',
+            'openclaw.notifications.command': '消息命令',
+            'openclaw.notifications.timeout_seconds': '发送超时',
+            'openclaw.notifications.context_ttl_seconds': '上下文 TTL',
+            'openclaw.notifications.message_prefix': '消息前缀',
+            'openclaw.notifications.routes.qqbot.target': 'QQBot 默认目标',
+            'openclaw.notifications.routes.qqbot.account': 'QQBot account',
+            'openclaw.notifications.routes.feishu.target': 'Feishu 默认目标',
+            'openclaw.notifications.routes.feishu.account': 'Feishu account',
+            'openclaw.notifications.fallback.channel': 'Fallback channel',
+            'openclaw.notifications.fallback.target': 'Fallback target',
+            'openclaw.notifications.fallback.account': 'Fallback account'
+        };
+
         let currentState = null;
         let currentConfig = null;
         let statusInterval = null;
@@ -2061,6 +2406,14 @@
         let lastRenderedEventKeys = [];
         let lastNotificationId = 0;
         let notificationsBootstrapped = false;
+
+        function setConfigPath(path) {
+            const safePath = path || '-';
+            const configPath = document.getElementById('configPath');
+            const heroConfigPath = document.getElementById('heroConfigPath');
+            if (configPath) configPath.textContent = safePath;
+            if (heroConfigPath) heroConfigPath.textContent = safePath;
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             gsap.from('header', { opacity: 0, y: -18, duration: 0.6, ease: 'power2.out' });
@@ -2150,8 +2503,8 @@
                 }
                 currentConfig = data.config || {};
                 populateConfigForm(currentConfig);
-                document.getElementById('configPath').textContent = data.path || '-';
-                document.getElementById('heroConfigPath').textContent = data.path || '-';
+                setConfigPath(data.path || '-');
+                updateHeroFromConfig(currentConfig);
                 if (showToast) {
                     showNotification('配置已重新载入到表单', 'info');
                 }
@@ -2222,6 +2575,147 @@
             if (el) el.value = value;
         }
 
+        function formatConfigFieldLabel(path) {
+            return CONFIG_FIELD_LABELS[path] || path;
+        }
+
+        function flattenConfigLeafPaths(value, prefix = '') {
+            if (Array.isArray(value)) {
+                return prefix ? { [prefix]: value.map(sortObjectDeep) } : {};
+            }
+
+            if (value && typeof value === 'object') {
+                const keys = Object.keys(value);
+                if (!keys.length) {
+                    return prefix ? { [prefix]: {} } : {};
+                }
+
+                return keys.reduce((acc, key) => {
+                    Object.assign(acc, flattenConfigLeafPaths(value[key], prefix ? `${prefix}.${key}` : key));
+                    return acc;
+                }, {});
+            }
+
+            return prefix ? { [prefix]: value } : {};
+        }
+
+        function getChangedConfigPaths(baseConfig, draftConfig) {
+            const baseMap = flattenConfigLeafPaths(baseConfig || {});
+            const draftMap = flattenConfigLeafPaths(draftConfig || {});
+            const keys = Array.from(new Set([...Object.keys(baseMap), ...Object.keys(draftMap)]));
+            return keys
+                .filter((key) => JSON.stringify(sortObjectDeep(baseMap[key])) !== JSON.stringify(sortObjectDeep(draftMap[key])))
+                .sort((a, b) => a.localeCompare(b, 'zh-CN', { sensitivity: 'base' }));
+        }
+
+        function categorizeConfigChanges(paths = []) {
+            const groups = {
+                immediate: [],
+                nextDetection: [],
+                serviceRestart: [],
+                routeOverrideRelevant: []
+            };
+
+            paths.forEach((path) => {
+                if (
+                    path.startsWith('safe_window.') ||
+                    path === 'risk_apps' ||
+                    path === 'detection.pre_alert_frames' ||
+                    path === 'detection.full_alert_frames' ||
+                    path.startsWith('openclaw.notifications.')
+                ) {
+                    groups.immediate.push(path);
+                }
+
+                if (
+                    path.startsWith('camera.') ||
+                    path === 'detection.confidence_threshold' ||
+                    path.startsWith('detection.risk_zone.')
+                ) {
+                    groups.nextDetection.push(path);
+                }
+
+                if (path.startsWith('webui.') || path.startsWith('logging.')) {
+                    groups.serviceRestart.push(path);
+                }
+
+                if (
+                    path.startsWith('openclaw.notifications.routes.') ||
+                    path.startsWith('openclaw.notifications.fallback.')
+                ) {
+                    groups.routeOverrideRelevant.push(path);
+                }
+            });
+
+            return groups;
+        }
+
+        function renderDraftSummary() {
+            const title = document.getElementById('draftSummaryTitle');
+            const badge = document.getElementById('draftSummaryBadge');
+            const lead = document.getElementById('draftSummaryLead');
+            const routeHint = document.getElementById('draftRouteHint');
+            if (!title || !badge || !lead || !routeHint) return;
+
+            if (!currentConfig) {
+                title.textContent = '等待配置载入...';
+                badge.textContent = 'LOADING';
+                badge.className = 'draft-badge';
+                lead.textContent = '载入后会在这里显示：本次保存将覆盖哪些字段、哪些会立即生效、哪些仍需重启服务。';
+                setText('draftSafeWindowSummary', '-');
+                setText('draftRiskAppsSummary', '-');
+                setText('draftWebuiSummary', '-');
+                setText('draftNotificationSummary', '-');
+                renderChipList('draftChangedKeysList', [], 'chip-blue');
+                renderChipList('draftImmediateKeysList', [], 'chip-green');
+                renderChipList('draftNextDetectionKeysList', [], 'chip-yellow');
+                renderChipList('draftServiceRestartKeysList', [], 'chip-red');
+                routeHint.textContent = '这里展示的是静态默认路由草稿；如果当前聊天已有运行时上下文注册，它仍会优先于这里的静态默认路由。';
+                return;
+            }
+
+            const draft = collectConfigFromForm();
+            const changedPaths = getChangedConfigPaths(currentConfig, draft);
+            const groups = categorizeConfigChanges(changedPaths);
+            const dirty = changedPaths.length > 0;
+            const primary = draft?.safe_window?.primary || '未设置';
+            const backup = draft?.safe_window?.backup || '未设置';
+            const riskCount = (draft?.risk_apps || []).length;
+            const webui = draft?.webui || {};
+            const notifications = draft?.openclaw?.notifications || {};
+            const routePreview = [
+                notifications?.routes?.qqbot?.target ? 'QQBot 默认路由已填' : '',
+                notifications?.routes?.feishu?.target ? 'Feishu 默认路由已填' : '',
+                notifications?.fallback?.target ? 'Fallback 已填' : ''
+            ].filter(Boolean);
+
+            badge.textContent = dirty ? `DIRTY · ${changedPaths.length}` : 'SYNCED';
+            badge.className = `draft-badge ${dirty ? 'active' : 'synced'}`;
+            title.textContent = dirty ? '当前草稿尚未写回 settings.yaml' : '表单已与当前运行配置同步';
+            lead.textContent = dirty
+                ? `如果现在保存，会覆盖 settings.yaml 中 ${changedPaths.length} 个字段；其中 ${groups.immediate.length} 项预计立即生效。`
+                : '当前没有未保存改动；此时执行武装/解除/恢复等动作，会直接使用当前已保存配置。';
+
+            setText('draftSafeWindowSummary', `${primary} → ${backup}`);
+            setText('draftRiskAppsSummary', riskCount ? `${riskCount} 项风险程序` : '未选择风险程序');
+            setText('draftWebuiSummary', `${webui.allow_lan ? 'LAN' : 'LOCAL'} · ${(webui.host || '-')} : ${(webui.port ?? '-')}`);
+            setText(
+                'draftNotificationSummary',
+                notifications.enabled
+                    ? (routePreview.length ? routePreview.join(' / ') : '已启用，但未填写静态默认目标')
+                    : '主动通知已关闭'
+            );
+
+            renderChipList('draftChangedKeysList', changedPaths, 'chip-blue');
+            renderChipList('draftImmediateKeysList', groups.immediate, 'chip-green');
+            renderChipList('draftNextDetectionKeysList', groups.nextDetection, 'chip-yellow');
+            renderChipList('draftServiceRestartKeysList', groups.serviceRestart, 'chip-red');
+
+            routeHint.textContent = groups.routeOverrideRelevant.length
+                ? '你修改了静态通知默认路由；但如果当前会话已通过 openclaw-context 注册运行时 channel / target / account / session，发送时仍会优先使用运行时上下文。'
+                : '这里展示的是静态默认路由草稿；如果当前聊天已有运行时上下文注册，它仍会优先于这里的静态默认路由。';
+        }
+
         function sortObjectDeep(value) {
             if (Array.isArray(value)) {
                 return value.map(sortObjectDeep);
@@ -2249,12 +2743,29 @@
 
         function refreshUnsavedIndicator() {
             const indicator = document.getElementById('unsavedChangesIndicator');
-            if (!indicator) return;
+            const saveBtn = document.getElementById('saveConfigBtn');
+            const saveNote = document.getElementById('saveActionNote');
             const dirty = hasUnsavedChanges();
-            indicator.classList.toggle('active', dirty);
-            indicator.textContent = dirty
-                ? '存在未保存改动，顶部操作将使用当前运行配置'
-                : '表单已同步到当前运行配置';
+
+            if (indicator) {
+                indicator.classList.toggle('active', dirty);
+                indicator.textContent = dirty
+                    ? '存在未保存改动，顶部动作仍会使用当前运行配置；点保存后才会覆盖 settings.yaml'
+                    : '表单已同步到当前运行配置';
+            }
+
+            if (saveBtn) {
+                saveBtn.classList.toggle('is-dirty', dirty);
+                saveBtn.textContent = dirty ? '💾 保存草稿并覆盖 settings.yaml' : '💾 保存并热加载';
+            }
+
+            if (saveNote) {
+                saveNote.textContent = dirty
+                    ? '保存会把当前草稿写回 settings.yaml；从磁盘重载会直接丢弃这些未保存改动。'
+                    : '当前表单已与 settings.yaml / 运行配置同步；从磁盘重载不会丢失内容。';
+            }
+
+            renderDraftSummary();
         }
 
         function bindConfigDirtyTracking() {
@@ -2304,6 +2815,53 @@
             setValue(targetId, '');
             renderProcessList();
             refreshUnsavedIndicator();
+        }
+
+        function applyQuickPreset(kind) {
+            switch (kind) {
+                case 'common-safe-window':
+                    setValue('safePrimary', 'Weixin.exe');
+                    setValue('safeBackup', 'calc.exe');
+                    break;
+                case 'clear-safe-window':
+                    setValue('safePrimary', '');
+                    setValue('safeBackup', '');
+                    break;
+                case 'local-webui':
+                    document.getElementById('webuiAllowLan').checked = false;
+                    updateWebuiHostUi();
+                    setValue('webuiPort', 8765);
+                    break;
+                case 'lan-webui':
+                    document.getElementById('webuiAllowLan').checked = true;
+                    updateWebuiHostUi();
+                    break;
+                case 'clear-static-routes':
+                    setValue('routeQqbotTarget', '');
+                    setValue('routeQqbotAccount', '');
+                    setValue('routeFeishuTarget', '');
+                    setValue('routeFeishuAccount', '');
+                    setValue('fallbackChannel', '');
+                    setValue('fallbackTarget', '');
+                    setValue('fallbackAccount', '');
+                    break;
+                default:
+                    return;
+            }
+
+            renderProcessList();
+            refreshUnsavedIndicator();
+        }
+
+        function revertFormToSavedConfig(showToast = true) {
+            if (!currentConfig) {
+                showNotification('当前没有已加载的配置可回退', 'warning');
+                return;
+            }
+            populateConfigForm(currentConfig);
+            if (showToast) {
+                showNotification('已回退到当前运行中的已保存配置', 'info');
+            }
         }
 
         function setSafeWindowTarget(targetId, processName) {
@@ -2614,6 +3172,7 @@
 
                 currentConfig = data.config || payload.config;
                 populateConfigForm(currentConfig);
+                setConfigPath(data.path || document.getElementById('configPath')?.textContent || '-');
                 renderConfigResult(data);
                 updateHeroFromConfig(currentConfig);
                 refreshUnsavedIndicator();
@@ -2645,8 +3204,7 @@
                 currentConfig = data.config || currentConfig;
                 populateConfigForm(currentConfig);
                 renderConfigResult(data);
-                document.getElementById('configPath').textContent = data.path || '-';
-                document.getElementById('heroConfigPath').textContent = data.path || '-';
+                setConfigPath(data.path || '-');
                 updateHeroFromConfig(currentConfig);
                 refreshUnsavedIndicator();
                 showNotification(buildSaveNotification(data, '已从磁盘重载配置'), data.service_restart_required?.length ? 'warning' : 'info');
@@ -2660,7 +3218,7 @@
             }
         }
 
-        function buildSaveNotification(data, prefix = '配置已保存') {
+        function buildSaveNotification(data, prefix = '配置已写回 settings.yaml') {
             const lines = [prefix];
             if (data.message) lines.push(data.message);
             if (data.detector_restarted) lines.push('检测链路已自动重建。');
@@ -2682,7 +3240,7 @@
                 container.innerHTML = '<span class="result-chip chip-muted">暂无</span>';
                 return;
             }
-            container.innerHTML = items.map(item => `<span class="result-chip ${cls}">${escapeHtml(item)}</span>`).join('');
+            container.innerHTML = items.map(item => `<span class="result-chip ${cls}">${escapeHtml(formatConfigFieldLabel(item))}</span>`).join('');
         }
 
         function setText(id, value) {
@@ -2852,6 +3410,40 @@
             setText(
                 'notificationChannelNote',
                 `通知轮询端点：${notificationChannel.poll_endpoint || '/api/notifications'}；即时推送事件：${(notificationChannel.supported_immediate_events || []).join(' / ') || '无'}；仅查询事件：${(notificationChannel.query_only_events || []).join(' / ') || '无'}。`
+            );
+
+            const context = notificationChannel.context || {};
+            const dispatch = notificationChannel.last_dispatch || {};
+            const active = Boolean(context.active);
+            const channel = context.channel || '-';
+            const target = context.target || '-';
+            const account = context.account || '-';
+            const source = context.source || '-';
+            const expiresIn = Number.isFinite(context.expires_in_s) ? `${context.expires_in_s}s` : 'inactive';
+            const registeredAt = context.registered_at || '-';
+            const dispatchStatus = dispatch.status || 'idle';
+            const dispatchMessage = dispatch.message || '尚未执行主动通知回推';
+            const dispatchTime = dispatch.timestamp ? dispatch.timestamp.substring(11, 19) : '--:--:--';
+
+            setText(
+                'notifyContextSummary',
+                active
+                    ? `ACTIVE · ${channel} → ${target}\naccount=${account} · source=${source}`
+                    : '当前没有活动的运行时通知上下文，将回退到静态 route / fallback。'
+            );
+            setText(
+                'notifyDispatchSummary',
+                `${dispatchStatus.toUpperCase()} · ${dispatchTime}\n${dispatchMessage}`
+            );
+            setText(
+                'notifyContextExpiry',
+                active
+                    ? `registered_at=${registeredAt}\nexpires_in=${expiresIn}`
+                    : 'inactive / no runtime binding'
+            );
+            setText(
+                'notifyRouteSummary',
+                `active_push=${notificationChannel.active_push_enabled ? 'on' : 'off'}\npush_command=${notificationChannel.push_command || '-'}\npending=${notificationChannel.pending ?? 0} · latest=${notificationChannel.latest_id ?? 0}`
             );
         }
 
@@ -3037,6 +3629,49 @@
             document.getElementById('heroConfigPath').textContent = pathText || '-';
             document.getElementById('heroPrimaryTarget').textContent = config?.safe_window?.primary || '-';
             document.getElementById('heroRiskAppCount').textContent = `${(config?.risk_apps || []).length} 项`;
+        }
+
+        async function testNotificationDispatch() {
+            try {
+                const resp = await fetch('/api/openclaw/notification-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: '这是从 WebUI 发起的 OpenClaw 主动通知测试',
+                        severity: 'warning',
+                        event_type: 'webui_notification_test',
+                    }),
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    showNotification(data.message || '通知测试已发送', 'success');
+                } else {
+                    showNotification(data.message || data.error || '通知测试失败', 'error');
+                }
+                updateStatus();
+            } catch (e) {
+                showNotification('通知测试失败: ' + e.message, 'error');
+            }
+        }
+
+        async function clearNotificationContext() {
+            if (!confirm('清空当前运行时通知上下文？这不会修改 settings.yaml，但会让主动通知回退到静态 route / fallback。')) {
+                return;
+            }
+            try {
+                const resp = await fetch('/api/openclaw/notification-context', {
+                    method: 'DELETE',
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    showNotification(data.message || '运行时通知上下文已清空', 'success');
+                } else {
+                    showNotification(data.error || '清空运行时通知上下文失败', 'error');
+                }
+                updateStatus();
+            } catch (e) {
+                showNotification('清空运行时通知上下文失败: ' + e.message, 'error');
+            }
         }
 
         async function armSystem() {

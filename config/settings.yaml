@@ -36,15 +36,15 @@ openclaw:
     command: openclaw
     timeout_seconds: 8
     context_ttl_seconds: 900
-    message_prefix: "[ClawCamKeeper]"
+    message_prefix: '[ClawCamKeeper]'
     routes:
       qqbot:
-        target: ""
-        account: "default"
+        target: qqbot:c2c:BBD5BE9523E5F99487345D9CADECEC2B
+        account: default
       feishu:
-        target: ""
-        account: ""
+        target: null
+        account: null
     fallback:
-      channel: ""
-      target: ""
-      account: ""
+      channel: qqbot
+      target: qqbot:c2c:BBD5BE9523E5F99487345D9CADECEC2B
+      account: default
