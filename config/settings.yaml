@@ -3,6 +3,12 @@ camera:
   fps: 30
   frame_height: 480
   frame_width: 640
+  startup_warmup_ms: 700
+  quick_probe_retries: 3
+  quick_probe_retry_delay_ms: 450
+  quick_check_max_ms: 3200
+  quick_probe_open_budget_ratio: 0.8
+  quick_probe_frame_budget_ms: 180
 detection:
   confidence_threshold: 0.5
   full_alert_frames: 30

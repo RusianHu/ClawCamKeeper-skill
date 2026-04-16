@@ -76,6 +76,9 @@ class Detector:
         self.quick_check_max_ms = cam_config.get("quick_check_max_ms", 1500)
         self.quick_probe_open_budget_ratio = float(cam_config.get("quick_probe_open_budget_ratio", 0.55))
         self.quick_probe_frame_budget_ms = int(cam_config.get("quick_probe_frame_budget_ms", 120))
+        self.quick_probe_retries = int(cam_config.get("quick_probe_retries", 3))
+        self.quick_probe_retry_delay_ms = int(cam_config.get("quick_probe_retry_delay_ms", 450))
+        self.startup_warmup_ms = int(cam_config.get("startup_warmup_ms", 700))
         self.confidence_threshold = det_config.get("confidence_threshold", 0.5)
 
         # 风险区域配置
@@ -277,98 +280,109 @@ class Detector:
         attempts = []
         probe_frames = self.quick_probe_frames if quick else self.probe_frames
         budget_ms = self.quick_check_max_ms if quick else None
+        cycle_count = max(1, self.quick_probe_retries) if quick else 1
 
-        for backend_name, backend in self._get_backend_candidates(quick=quick):
-            if budget_ms is not None and self._elapsed_ms(started_at) >= budget_ms:
-                logger.warning(f"摄像头快速探测达到预算上限: {budget_ms}ms")
-                break
+        for cycle_index in range(cycle_count):
+            if quick and cycle_index == 0 and self.startup_warmup_ms > 0:
+                time.sleep(max(0.0, self.startup_warmup_ms / 1000.0))
 
-            attempt_started_at = time.perf_counter()
-            cap = None
-            attempt_info = {
-                "backend": backend_name,
-                "opened": False,
-                "probe_success": False,
-                "elapsed_ms": 0.0,
-                "mode": "quick" if quick else "full",
-            }
-            try:
-                open_started_at = time.perf_counter()
-                cap = cv2.VideoCapture(self.device_index) if backend is None else cv2.VideoCapture(self.device_index, backend)
-                attempt_info["open_ms"] = self._elapsed_ms(open_started_at)
-                if not cap or not cap.isOpened():
-                    if cap:
-                        cap.release()
-                    attempt_info["elapsed_ms"] = self._elapsed_ms(attempt_started_at)
-                    attempts.append(attempt_info)
-                    continue
+            for backend_name, backend in self._get_backend_candidates(quick=quick):
+                if budget_ms is not None and self._elapsed_ms(started_at) >= budget_ms:
+                    logger.warning(f"摄像头快速探测达到预算上限: {budget_ms}ms")
+                    break
 
-                attempt_info["opened"] = True
-                configure_started_at = time.perf_counter()
-                self._configure_capture(cap, minimal=quick)
-                attempt_info["configure_mode"] = "minimal" if quick else "full"
-                attempt_info["configure_ms"] = self._elapsed_ms(configure_started_at)
-
-                warmup_sleep_s = 0.02 if quick else 0.12
-                warmup_started_at = time.perf_counter()
-                time.sleep(warmup_sleep_s)
-                attempt_info["warmup_ms"] = self._elapsed_ms(warmup_started_at)
-
-                if quick and budget_ms is not None:
-                    open_budget_ms = max(1.0, budget_ms * self.quick_probe_open_budget_ratio)
-                    if float(attempt_info.get("open_ms") or 0.0) >= open_budget_ms:
-                        attempt_info["probe_skipped"] = True
-                        attempt_info["probe_skip_reason"] = "open_budget_exhausted"
+                attempt_started_at = time.perf_counter()
+                cap = None
+                attempt_info = {
+                    "backend": backend_name,
+                    "opened": False,
+                    "probe_success": False,
+                    "elapsed_ms": 0.0,
+                    "mode": "quick" if quick else "full",
+                    "cycle": cycle_index + 1,
+                }
+                try:
+                    open_started_at = time.perf_counter()
+                    cap = cv2.VideoCapture(self.device_index) if backend is None else cv2.VideoCapture(self.device_index, backend)
+                    attempt_info["open_ms"] = self._elapsed_ms(open_started_at)
+                    if not cap or not cap.isOpened():
+                        if cap:
+                            cap.release()
                         attempt_info["elapsed_ms"] = self._elapsed_ms(attempt_started_at)
-                        cap.release()
                         attempts.append(attempt_info)
                         continue
 
-                probe_budget_ms = self.quick_probe_frame_budget_ms if quick else None
-                probe_started_at = time.perf_counter()
-                probe_success = self._probe_capture(
-                    cap,
-                    probe_frames=probe_frames,
-                    quick=quick,
-                    budget_ms=probe_budget_ms,
-                )
-                attempt_info["probe_ms"] = self._elapsed_ms(probe_started_at)
-                attempt_info["probe_success"] = probe_success
+                    attempt_info["opened"] = True
+                    configure_started_at = time.perf_counter()
+                    self._configure_capture(cap, minimal=quick)
+                    attempt_info["configure_mode"] = "minimal" if quick else "full"
+                    attempt_info["configure_ms"] = self._elapsed_ms(configure_started_at)
 
-                if probe_success:
-                    self.cap = cap
-                    self._camera_runtime_available = True
-                    self._last_camera_error = None
-                    self._consecutive_read_failures = 0
-                    self._opened_backend = backend_name
-                    self._last_success_time = datetime.now()
+                    warmup_sleep_s = 0.02 if quick else 0.12
+                    warmup_started_at = time.perf_counter()
+                    time.sleep(warmup_sleep_s)
+                    attempt_info["warmup_ms"] = self._elapsed_ms(warmup_started_at)
+
+                    if quick and budget_ms is not None:
+                        open_budget_ms = max(1.0, budget_ms * self.quick_probe_open_budget_ratio)
+                        if float(attempt_info.get("open_ms") or 0.0) >= open_budget_ms:
+                            attempt_info["probe_skipped"] = True
+                            attempt_info["probe_skip_reason"] = "open_budget_exhausted"
+                            attempt_info["elapsed_ms"] = self._elapsed_ms(attempt_started_at)
+                            cap.release()
+                            attempts.append(attempt_info)
+                            continue
+
+                    probe_budget_ms = self.quick_probe_frame_budget_ms if quick else None
+                    probe_started_at = time.perf_counter()
+                    probe_success = self._probe_capture(
+                        cap,
+                        probe_frames=probe_frames,
+                        quick=quick,
+                        budget_ms=probe_budget_ms,
+                    )
+                    attempt_info["probe_ms"] = self._elapsed_ms(probe_started_at)
+                    attempt_info["probe_success"] = probe_success
+
+                    if probe_success:
+                        self.cap = cap
+                        self._camera_runtime_available = True
+                        self._last_camera_error = None
+                        self._consecutive_read_failures = 0
+                        self._opened_backend = backend_name
+                        self._last_success_time = datetime.now()
+                        attempt_info["elapsed_ms"] = self._elapsed_ms(attempt_started_at)
+                        attempts.append(attempt_info)
+                        self._update_perf(
+                            "open_capture",
+                            last_total_ms=self._elapsed_ms(started_at),
+                            last_backend=backend_name,
+                            attempts=attempts,
+                            success=True,
+                            last_probe_frames=probe_frames,
+                        )
+                        logger.info(
+                            f"摄像头已打开: {self.frame_width}x{self.frame_height}@{self.fps}fps, "
+                            f"backend={backend_name}, elapsed={self._elapsed_ms(started_at)}ms"
+                        )
+                        return True
+
+                    logger.warning(f"摄像头后端预热失败: {backend_name}")
+                    cap.release()
                     attempt_info["elapsed_ms"] = self._elapsed_ms(attempt_started_at)
                     attempts.append(attempt_info)
-                    self._update_perf(
-                        "open_capture",
-                        last_total_ms=self._elapsed_ms(started_at),
-                        last_backend=backend_name,
-                        attempts=attempts,
-                        success=True,
-                        last_probe_frames=probe_frames,
-                    )
-                    logger.info(
-                        f"摄像头已打开: {self.frame_width}x{self.frame_height}@{self.fps}fps, "
-                        f"backend={backend_name}, elapsed={self._elapsed_ms(started_at)}ms"
-                    )
-                    return True
+                except Exception as e:
+                    if cap:
+                        cap.release()
+                    attempt_info["error"] = str(e)
+                    attempt_info["elapsed_ms"] = self._elapsed_ms(attempt_started_at)
+                    attempts.append(attempt_info)
+                    logger.warning(f"摄像头后端打开失败 {backend_name}: {e}")
 
-                logger.warning(f"摄像头后端预热失败: {backend_name}")
-                cap.release()
-                attempt_info["elapsed_ms"] = self._elapsed_ms(attempt_started_at)
-                attempts.append(attempt_info)
-            except Exception as e:
-                if cap:
-                    cap.release()
-                attempt_info["error"] = str(e)
-                attempt_info["elapsed_ms"] = self._elapsed_ms(attempt_started_at)
-                attempts.append(attempt_info)
-                logger.warning(f"摄像头后端打开失败 {backend_name}: {e}")
+            if quick and cycle_index + 1 < cycle_count:
+                if budget_ms is not None and self._elapsed_ms(started_at) >= budget_ms:
+                    break
+                time.sleep(max(0.0, self.quick_probe_retry_delay_ms / 1000.0))
 
         self.cap = None
         self._camera_runtime_available = False

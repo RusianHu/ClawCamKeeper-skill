@@ -197,8 +197,55 @@ def _collect_runtime_targets(config_path: Optional[str] = None) -> tuple[str, in
     return host, port
 
 
+def _best_effort_graceful_disarm(host: str, port: int, timeout: float = 3.0) -> dict[str, Any]:
+    """在停止服务前尽量优雅解除武装，给检测线程释放摄像头句柄的机会。"""
+    started_at = time.perf_counter()
+    url = f"http://{_normalize_probe_host(host)}:{int(port)}/api/disarm"
+    try:
+        req = urllib.request.Request(url, data=b"{}", method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return {
+                "attempted": True,
+                "ok": True,
+                "status": "disarmed",
+                "message": data.get("message", "系统已解除武装"),
+                "response": data,
+                "timings": {"total_ms": round((time.perf_counter() - started_at) * 1000, 2)},
+            }
+    except urllib.error.HTTPError as e:
+        try:
+            payload = json.loads(e.read().decode("utf-8"))
+        except Exception:
+            payload = {"error": f"HTTP {e.code}: {e.reason}"}
+
+        error_text = str(payload.get("error") or payload.get("message") or "")
+        benign = any(token in error_text for token in ["未武装", "already", "not armed"])
+        return {
+            "attempted": True,
+            "ok": benign,
+            "status": "already_unarmed" if benign else "http_error",
+            "message": error_text or f"HTTP {e.code}: {e.reason}",
+            "response": payload,
+            "timings": {"total_ms": round((time.perf_counter() - started_at) * 1000, 2)},
+        }
+    except Exception as exc:
+        return {
+            "attempted": True,
+            "ok": False,
+            "status": "skipped",
+            "message": str(exc),
+            "timings": {"total_ms": round((time.perf_counter() - started_at) * 1000, 2)},
+        }
+
+
 def _terminate_managed_service_group(host: str, port: int, timeout: float = 12.0) -> dict[str, Any]:
     started_at = time.perf_counter()
+    graceful_stop = _best_effort_graceful_disarm(host, port)
+    if graceful_stop.get("ok"):
+        time.sleep(0.8)
+
     targets = _find_managed_service_pids(host, port)
     results: list[dict[str, Any]] = []
 
@@ -213,6 +260,7 @@ def _terminate_managed_service_group(host: str, port: int, timeout: float = 12.0
     return {
         "success": success,
         "message": "所有受管服务进程已停止" if success else "仍有受管服务进程未停止",
+        "graceful_stop": graceful_stop,
         "targets": targets,
         "results": results,
         "remaining": remaining,

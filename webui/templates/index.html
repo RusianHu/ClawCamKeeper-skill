@@ -2675,7 +2675,7 @@
             }
 
             const draft = collectConfigFromForm();
-            const changedPaths = getChangedConfigPaths(currentConfig, draft);
+            const changedPaths = getChangedConfigPaths(projectConfigForFormComparison(currentConfig), draft);
             const groups = categorizeConfigChanges(changedPaths);
             const dirty = changedPaths.length > 0;
             const primary = draft?.safe_window?.primary || '未设置';
@@ -2731,6 +2731,80 @@
             return value;
         }
 
+        function projectConfigForFormComparison(config) {
+            const source = config || {};
+            const camera = source.camera || {};
+            const detection = source.detection || {};
+            const riskZone = detection.risk_zone || {};
+            const safeWindow = source.safe_window || {};
+            const webui = source.webui || {};
+            const logging = source.logging || {};
+            const notifications = (((source.openclaw || {}).notifications) || {});
+            const routes = notifications.routes || {};
+            const qqbotRoute = routes.qqbot || {};
+            const feishuRoute = routes.feishu || {};
+            const fallback = notifications.fallback || {};
+
+            return {
+                safe_window: {
+                    primary: safeWindow.primary ?? '',
+                    backup: safeWindow.backup ?? ''
+                },
+                risk_apps: dedupeProcessNames(source.risk_apps || []),
+                detection: {
+                    pre_alert_frames: detection.pre_alert_frames ?? 10,
+                    full_alert_frames: detection.full_alert_frames ?? 30,
+                    confidence_threshold: detection.confidence_threshold ?? 0.5,
+                    risk_zone: {
+                        x: riskZone.x ?? 0,
+                        y: riskZone.y ?? 0,
+                        width: riskZone.width ?? 1,
+                        height: riskZone.height ?? 1
+                    }
+                },
+                camera: {
+                    device_index: camera.device_index ?? 0,
+                    fps: camera.fps ?? 30,
+                    frame_width: camera.frame_width ?? 640,
+                    frame_height: camera.frame_height ?? 480
+                },
+                logging: {
+                    file: logging.file ?? 'clawcamkeeper.log',
+                    level: logging.level ?? 'INFO'
+                },
+                webui: {
+                    allow_lan: Boolean(webui.allow_lan),
+                    host: webui.host ?? '127.0.0.1',
+                    port: webui.port ?? 8765,
+                    debug: Boolean(webui.debug)
+                },
+                openclaw: {
+                    notifications: {
+                        enabled: Boolean(notifications.enabled),
+                        command: notifications.command ?? 'openclaw',
+                        timeout_seconds: notifications.timeout_seconds ?? 8,
+                        context_ttl_seconds: notifications.context_ttl_seconds ?? 900,
+                        message_prefix: notifications.message_prefix ?? '[ClawCamKeeper]',
+                        routes: {
+                            qqbot: {
+                                target: qqbotRoute.target ?? '',
+                                account: qqbotRoute.account ?? ''
+                            },
+                            feishu: {
+                                target: feishuRoute.target ?? '',
+                                account: feishuRoute.account ?? ''
+                            }
+                        },
+                        fallback: {
+                            channel: fallback.channel ?? '',
+                            target: fallback.target ?? '',
+                            account: fallback.account ?? ''
+                        }
+                    }
+                }
+            };
+        }
+
         function getComparableConfig(config) {
             if (!config) return null;
             return JSON.stringify(sortObjectDeep(config));
@@ -2738,7 +2812,7 @@
 
         function hasUnsavedChanges() {
             if (!currentConfig) return false;
-            return getComparableConfig(collectConfigFromForm()) !== getComparableConfig(currentConfig);
+            return getComparableConfig(collectConfigFromForm()) !== getComparableConfig(projectConfigForFormComparison(currentConfig));
         }
 
         function refreshUnsavedIndicator() {
