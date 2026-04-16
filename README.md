@@ -2,7 +2,7 @@
 
 一个运行在本地、由 OpenClaw 参与控制与通知的轻量 **工位摸鱼防护预警技能**。
 
-当有 **人形生物** 进入可见摄像头的 **危险空间** 时，把当前屏幕环境切到安全态，避免暴露你的小隐私状态。
+当有 **人形生物** 进入可见摄像头的 **危险空间** 时，把当前屏幕环境切到可选的安全态窗口，避免暴露你的小隐私窗口。
 
 ## 功能概览
 
@@ -19,7 +19,7 @@
 直接和你的龙虾 openclaw 说：
 
 ```text
-为你自己安装这个 skill ： https://github.com/RusianHu/ClawCamKeeper-skill 
+为你自己安装这个 skill ： https://github.com/RusianHu/ClawCamKeeper-skill ，然后配置绑定当前对话这个 session 
 ```
 
 剩下的就不用管了，交给龙虾，剩下的是调试时看的，龙虾自己会看 [SKILL.md](SKILL.md) 。
