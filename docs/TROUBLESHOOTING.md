@@ -43,9 +43,7 @@ python .\main.py service-restart --json
 重点检查 `service-restart --json` 返回中的：
 - `start.pid`
 - `start.listening_pids`
-- `status.runtime_validation`
-
-只有当**新启动 PID 真正出现在监听 PID 列表里**，才说明新代码已接管 `8765`。
+- 新 PID 是否真正接管监听
 
 ### 兜底手工排查（仅在内置命令失效时）
 ```powershell
@@ -67,8 +65,9 @@ python .\main.py run
 
 ### 处理
 ```powershell
-python .\main.py openclaw-context --channel qqbot --target qqbot:c2c:YOUR_TARGET --account default
-python .\main.py openclaw notification-context
+python .\main.py openclaw-context-show
+python .\main.py openclaw-context --channel feishu --target user:ou_xxx --account default
+python .\main.py notification-test --message "smoke test" --json
 ```
 
 然后再做告警联调。
@@ -124,14 +123,17 @@ python .\main.py openclaw status
 
 最短路径：
 
-1. `notification-context`：看上下文是否已注册
-2. `notifications`：看事件是否进入通知队列
-3. `events`：看完整时间线
-4. `status`：看当前状态和通知通道摘要
+1. `notification-context` / `openclaw-context-show`：看上下文是否已注册
+2. `notification-test`：先做烟雾测试
+3. `notifications`：看事件是否进入通知队列
+4. `events`：看完整时间线
+5. `status`：看当前状态和通知通道摘要
 
-如果是 QQBot：默认应优先怀疑
-- 直连 HTTP 发送是否失败
-- 失败后 CLI 兜底是否成功
+如果是 Feishu：默认应优先怀疑
+- 当前上下文是否真的是 `channel=feishu`
+- `target` 是否是 `user:ou_xxx` 或正确聊天目标
+- `last_dispatch` 是否成功
+- 收到的消息是不是只是中途事件，不是最终状态
 
 ---
 
@@ -170,9 +172,10 @@ python .\main.py openclaw status
 ### 正确认知
 这未必是失败，也可能只是**状态推进时序**。
 
-在 2026-04-14 的多轮真人联调中，现场已经验证过：
+在多轮真人联调中，现场已经验证过：
 - 中途查询确实可能先看到 `full_alert`
-- 但稍后再次回读 `status`，最终状态会稳定落到 `danger_locked`
+- 当前实现会优先把最终锁定态对外表达为 `danger_lock`
+- 但稍后再次回读 `status`，最终状态才算真正确认落到 `danger_locked`
 
 因此，判断是否真正锁定，**以最终 `status` 为准**，重点看：
 - `arm_state=danger_locked`
@@ -188,7 +191,7 @@ python .\main.py openclaw events --limit 10
 python .\main.py openclaw notifications --since-id 0 --limit 10
 ```
 
-优先用 `status` 判定最终结果，不要只凭中途一拍的 `full_alert` 就断言失败。
+优先用 `status` 判定最终结果，不要只凭中途一拍的 `full_alert` 或某条主动消息就断言失败。
 
 ---
 
@@ -207,14 +210,29 @@ python .\main.py service-stop
 
 ---
 
-## 10. 什么时候该谈 ACP，什么时候不该
+## 10. Feishu 接入的几个实战提醒
 
-### 适合 ACP
-- 要把复杂 agent 工作送回某个会话继续做
-- 要有持续对话或继续执行语义
+### 先看健康状态，再让用户触发真人测试
+如果 `camera_available=false` 或 `is_protecting=false`，就别让用户白演一轮。
 
-### 不适合 ACP
-- 危险告警主链路
-- 要求低延迟、低依赖、明确渠道直达的提醒
+### 先看上下文，再看消息
+先确认：
+- `channel=feishu`
+- `target=user:ou_xxx` 或正确群目标
+- `account=default`
 
-危险告警优先考虑 **直连渠道发送**，不是默认走 ACP。
+再去看消息是否成功发回。
+
+### 先看 `last_dispatch`，再猜发送路径
+最有用的位置是：
+- `status.notification_channel.last_dispatch`
+
+重点看：
+- `ok`
+- `status`
+- `effective_path`
+- `primary_path`
+
+### 别把“收到消息”误当“最终已锁定”
+收到消息只说明**有事件被投递**。
+最终是否已锁定，必须再回读 `status`。

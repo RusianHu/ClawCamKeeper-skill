@@ -135,9 +135,10 @@ OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py
 
 但要注意：
 
+- **Feishu 已实测可走直连 HTTP 后备发送**
 - **QQBot 场景优先走直连 HTTP 发送**
 - **OpenClaw CLI 消息发送是兜底路径**
-- **ACP 不是危险告警主链路**，它更适合复杂会话工作继续流转
+- **最终业务状态要以 `status` / `state_snapshot` 为准，不以单条通知文案为准**
 
 ### 当前回推链路
 
@@ -145,10 +146,13 @@ OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py
 2. 通过 `openclaw-context` 或 bridge 自动注册上下文
 3. 危险事件进入通知队列后：
    - QQBot：优先直连 QQ API
-   - 若直连失败：退回 OpenClaw CLI 消息发送
+   - Feishu：优先走 Feishu 直连发送能力
+   - 若渠道直发失败：退回 OpenClaw CLI 消息发送
    - 其他渠道：默认通过 OpenClaw CLI 消息发送
 
-### 已验证联调结果（2026-04-14）
+### 已验证联调结果
+
+#### QQ（2026-04-14）
 
 截至 2026-04-14，已完成：
 
@@ -165,16 +169,61 @@ OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py
 4. 系统最终进入 `danger_locked`
 5. 当前 QQ 会话收到主动提醒
 
+#### Feishu（2026-04-16）
+
+截至 2026-04-16，已完成：
+
+- 当前 Feishu 私聊上下文自动绑定成功
+- `notification-test` 烟雾测试成功
+- `status.notification_channel.last_dispatch` 显示 `sent_via_direct_http`
+- 真人摄像头触发联调通过
+- 动作链执行成功并最终进入 `danger_locked`
+- Feishu 会话收到主动提醒
+
+这轮 Feishu 联调后的准确结论是：
+
+1. Feishu 当前会话回推链已经打通
+2. 最终状态判断必须回读 `status`
+3. 当前实现已调整为优先把最终锁定态通知为 `danger_lock`
+4. 但最终业务状态仍必须通过 `status` 回读确认
+
+### Feishu 联调最佳实践
+
+建议按这个顺序走：
+
+1. 启动服务：`python .\main.py run`
+2. 健康检查：`python .\main.py doctor --json`
+3. 查看上下文：`python .\main.py openclaw-context-show`
+4. 做烟雾测试：`python .\main.py notification-test --message "smoke test" --json`
+5. 回读 `status.notification_channel.last_dispatch`
+6. 武装：`python .\main.py openclaw arm`
+7. 人工触发危险事件
+8. 回读：
+   - `python .\main.py status --json`
+   - `python .\main.py events --limit 10 --json`
+   - `python .\main.py notifications --since-id 0 --limit 10`
+
+重点检查：
+
+- `camera_available=true`
+- `is_protecting=true`
+- `last_dispatch.ok=true`
+- `last_dispatch.effective_path=feishu_direct_http`（或等效成功路径）
+- 最终 `arm_state=danger_locked`
+- 最终 `is_locked=true`
+
 ### 联调建议顺序
 
 1. 启动本地服务：`python .\main.py run`
 2. 注册当前回推上下文：`python .\main.py openclaw-context --channel <channel> --target <target> --account <account>`
 3. 检查上下文：`python .\main.py openclaw-context-show`
-4. 武装：`python .\main.py openclaw arm`
-5. 人工触发一次危险事件
-6. 观察目标渠道是否收到主动提醒
-7. 再查看 `notifications` / `events` / `status.notification_channel`
-8. 联调结束后，如无需继续监控，执行 `python .\main.py service-stop` 收口
+4. 做一次烟雾测试：`python .\main.py notification-test --message "smoke test" --json`
+5. 武装：`python .\main.py openclaw arm`
+6. 人工触发一次危险事件
+7. 观察目标渠道是否收到主动提醒
+8. 再查看 `notifications` / `events` / `status.notification_channel`
+9. 最后回读 `status`，确认最终业务状态
+10. 联调结束后，如无需继续监控，执行 `python .\main.py service-stop` 收口
 
 更完整说明见 [`docs/NOTIFICATION-FLOW.md`](docs/NOTIFICATION-FLOW.md)。
 
@@ -261,10 +310,10 @@ openclaw:
         account: "default"
       feishu:
         target: ""
-        account: ""
+        account: "default"
     fallback:
-      channel: "qqbot"
-      target: "qqbot:c2c:YOUR_TARGET"
+      channel: "feishu"
+      target: "user:ou_xxx"
       account: "default"
 ```
 
@@ -284,13 +333,13 @@ openclaw:
 - 8765 端口被旧实例占用
 - 通知上下文为空，导致发不回当前聊天
 - `Weixin.exe` 不可用，看起来像动作链坏了
+- Feishu 收到了提醒，但最终状态不确定
 
 详见 [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)。
 
 ## 当前限制
 
 - 项目当前主要面向 Windows
-- OpenClaw `agent --local` / 某些 chat 直通能力仍受 provider 凭据与 token 状态影响
-- 通知链虽然支持会话上下文，但并不等于 ACP 原生事件流
+- 通知链虽然支持会话上下文，但不能只凭单条主动消息判断最终业务状态
 - 如果当前调用链没有提供 `channel / target`，则需要依赖配置中的 `routes` 或 `fallback`
 - 如果使用同步脚本安装 skill，更新时应重新同步整个仓库，而不是只覆盖 `SKILL.md`

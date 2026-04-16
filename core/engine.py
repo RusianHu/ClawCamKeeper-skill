@@ -5,6 +5,7 @@
 
 from copy import deepcopy
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -682,6 +683,319 @@ class MonitorEngine:
                 logger.warning(f"读取 OpenClaw 主配置失败 {path}: {exc}")
         return {}
 
+    def _build_openclaw_command_invocation(self) -> list[str]:
+        command = str(self._notification_command_resolved or self._notification_command).strip() or "openclaw"
+
+        if os.name == "nt":
+            node_bin = shutil.which("node")
+            command_path = Path(command)
+            if not command_path.is_absolute():
+                resolved = shutil.which(command)
+                if resolved:
+                    command_path = Path(resolved)
+
+            candidates: list[Path] = []
+            if command_path.exists():
+                candidates.append(command_path.parent / "node_modules" / "openclaw" / "dist" / "openclaw.mjs")
+            candidates.append(Path.home() / "AppData" / "Roaming" / "npm" / "node_modules" / "openclaw" / "dist" / "openclaw.mjs")
+
+            seen: set[str] = set()
+            for candidate in candidates:
+                candidate_key = str(candidate)
+                if candidate_key in seen:
+                    continue
+                seen.add(candidate_key)
+                if candidate.exists() and node_bin:
+                    return [node_bin, str(candidate)]
+
+        return [command]
+
+    def _build_openclaw_message_send_command(self, route: dict[str, Any], message_text: str) -> list[str]:
+        command = [
+            *self._build_openclaw_command_invocation(),
+            "message",
+            "send",
+            "--json",
+            "--channel",
+            route["channel"],
+            "--target",
+            route["target"],
+            "--message",
+            message_text,
+        ]
+        if route.get("account"):
+            command.extend(["--account", route["account"]])
+        return command
+
+    def _run_openclaw_cli_send(
+        self,
+        route: dict[str, Any],
+        message_text: str,
+        *,
+        success_message: str = "主动通知已发送",
+    ) -> dict[str, Any]:
+        command = self._build_openclaw_message_send_command(route, message_text)
+
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self._notification_timeout_seconds,
+                check=False,
+            )
+            stdout = (completed.stdout or "").strip()
+            stderr = (completed.stderr or "").strip()
+            return {
+                "ok": completed.returncode == 0,
+                "status": "sent_via_openclaw_cli" if completed.returncode == 0 else "send_failed",
+                "message": success_message if completed.returncode == 0 else (stderr or stdout or "OpenClaw 主动通知发送失败"),
+                "timestamp": datetime.now().isoformat(),
+                "channel": route["channel"],
+                "target": route["target"],
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+                "command": command,
+                "exit_code": completed.returncode,
+                "stdout": stdout,
+                "stderr": stderr,
+                "primary_path": "openclaw_cli_message",
+                "effective_path": "openclaw_cli_message" if completed.returncode == 0 else None,
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "ok": False,
+                "status": "timeout",
+                "message": f"OpenClaw CLI 补发超时（>{self._notification_timeout_seconds}s）",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route["channel"],
+                "target": route["target"],
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+                "command": command,
+                "primary_path": "openclaw_cli_message",
+                "effective_path": None,
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "status": "error",
+                "message": f"OpenClaw CLI 补发异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route["channel"],
+                "target": route["target"],
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+                "command": command,
+                "primary_path": "openclaw_cli_message",
+                "effective_path": None,
+            }
+
+    @staticmethod
+    def _resolve_feishu_open_api_base(feishu_cfg: dict[str, Any]) -> str:
+        domain = str((feishu_cfg or {}).get("domain") or "feishu").strip().lower()
+        return "https://open.larksuite.com" if "lark" in domain else "https://open.feishu.cn"
+
+    def _feishu_direct_send(self, route: dict[str, Any], message_text: str) -> dict[str, Any]:
+        if route.get("channel") != "feishu":
+            return {
+                "ok": False,
+                "status": "unsupported_channel",
+                "message": f"直连后备暂只支持 feishu，当前为 {route.get('channel')}",
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        target = str(route.get("target") or "").strip()
+        receive_id_type: Optional[str] = None
+        receive_id: Optional[str] = None
+        if target.startswith("user:"):
+            receive_id_type = "open_id"
+            receive_id = target.split(":", 1)[1]
+        elif target.startswith("chat:"):
+            receive_id_type = "chat_id"
+            receive_id = target.split(":", 1)[1]
+        elif target.startswith("open_id:"):
+            receive_id_type = "open_id"
+            receive_id = target.split(":", 1)[1]
+        elif target.startswith("chat_id:"):
+            receive_id_type = "chat_id"
+            receive_id = target.split(":", 1)[1]
+        elif target.startswith("ou_"):
+            receive_id_type = "open_id"
+            receive_id = target
+        elif target.startswith("oc_"):
+            receive_id_type = "chat_id"
+            receive_id = target
+
+        if not receive_id_type or not receive_id:
+            return {
+                "ok": False,
+                "status": "unsupported_target",
+                "message": f"Feishu 直连后备当前仅支持 open_id/chat_id 目标，当前为 {target}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+
+        openclaw_cfg = self._load_openclaw_main_config()
+        feishu_cfg = ((openclaw_cfg.get("channels") or {}).get("feishu") or {}) if isinstance(openclaw_cfg, dict) else {}
+        app_id = str(feishu_cfg.get("appId") or "").strip()
+        app_secret = str(feishu_cfg.get("appSecret") or "").strip()
+        if not app_id or not app_secret:
+            return {
+                "ok": False,
+                "status": "missing_credentials",
+                "message": "OpenClaw 主配置中缺少 Feishu appId/appSecret，无法走直连后备",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+
+        api_base = self._resolve_feishu_open_api_base(feishu_cfg)
+        token_url = f"{api_base}/open-apis/auth/v3/tenant_access_token/internal"
+        token_payload = json.dumps({"app_id": app_id, "app_secret": app_secret}).encode("utf-8")
+        token_req = Request(token_url, data=token_payload, headers={"Content-Type": "application/json"}, method="POST")
+
+        try:
+            with urlopen(token_req, timeout=max(3, self._notification_timeout_seconds)) as resp:
+                token_data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+            return {
+                "ok": False,
+                "status": "token_http_error",
+                "message": f"获取 Feishu tenant_access_token 失败: HTTP {exc.code} {body}".strip(),
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+        except URLError as exc:
+            return {
+                "ok": False,
+                "status": "token_network_error",
+                "message": f"获取 Feishu tenant_access_token 网络异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "status": "token_error",
+                "message": f"获取 Feishu tenant_access_token 异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+
+        access_token = str(token_data.get("tenant_access_token") or "").strip()
+        if token_data.get("code") not in (None, 0) or not access_token:
+            return {
+                "ok": False,
+                "status": "missing_access_token",
+                "message": f"Feishu tenant_access_token 响应异常: {token_data}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+
+        send_url = f"{api_base}/open-apis/im/v1/messages?receive_id_type={receive_id_type}"
+        send_body = json.dumps(
+            {
+                "receive_id": receive_id,
+                "msg_type": "text",
+                "content": json.dumps({"text": message_text}, ensure_ascii=False),
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
+        send_req = Request(
+            send_url,
+            data=send_body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {access_token}",
+            },
+            method="POST",
+        )
+
+        try:
+            with urlopen(send_req, timeout=max(3, self._notification_timeout_seconds)) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                send_data = json.loads(raw) if raw else {}
+            if send_data.get("code") not in (None, 0):
+                return {
+                    "ok": False,
+                    "status": "send_api_error",
+                    "message": f"Feishu 直连后备发送失败: {send_data}",
+                    "timestamp": datetime.now().isoformat(),
+                    "channel": route.get("channel"),
+                    "target": target,
+                    "account": route.get("account"),
+                    "route_source": route.get("route_source"),
+                    "response": send_data,
+                }
+            return {
+                "ok": True,
+                "status": "sent_via_direct_http",
+                "message": "Feishu 直连后备发送成功",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+                "response": send_data,
+                "receive_id_type": receive_id_type,
+                "effective_path": "feishu_direct_http",
+            }
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+            return {
+                "ok": False,
+                "status": "send_http_error",
+                "message": f"Feishu 直连后备发送失败: HTTP {exc.code} {body}".strip(),
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+        except URLError as exc:
+            return {
+                "ok": False,
+                "status": "send_network_error",
+                "message": f"Feishu 直连后备网络异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "status": "send_error",
+                "message": f"Feishu 直连后备发送异常: {exc}",
+                "timestamp": datetime.now().isoformat(),
+                "channel": route.get("channel"),
+                "target": target,
+                "account": route.get("account"),
+                "route_source": route.get("route_source"),
+            }
+
     def _qqbot_direct_send(self, route: dict[str, Any], message_text: str) -> dict[str, Any]:
         if route.get("channel") != "qqbot":
             return {
@@ -846,82 +1160,21 @@ class MonitorEngine:
             return
 
         message_text = self._format_push_message(notification)
+        channel = str(route.get("channel") or "").lower()
 
-        if route.get("channel") == "qqbot":
+        if channel == "qqbot":
             direct_result = self._qqbot_direct_send(route, message_text)
             result = {
                 **direct_result,
                 "primary_path": "qqbot_direct_http",
+                "effective_path": direct_result.get("effective_path") if direct_result.get("ok") else None,
             }
             if not direct_result.get("ok"):
-                command = [
-                    self._notification_command_resolved,
-                    "message",
-                    "send",
-                    "--json",
-                    "--channel",
-                    route["channel"],
-                    "--target",
-                    route["target"],
-                    "--message",
+                cli_result = self._run_openclaw_cli_send(
+                    route,
                     message_text,
-                ]
-                if route.get("account"):
-                    command.extend(["--account", route["account"]])
-
-                try:
-                    completed = subprocess.run(
-                        command,
-                        capture_output=True,
-                        text=True,
-                        encoding="utf-8",
-                        errors="replace",
-                        timeout=self._notification_timeout_seconds,
-                        check=False,
-                    )
-                    stdout = (completed.stdout or "").strip()
-                    stderr = (completed.stderr or "").strip()
-                    cli_result = {
-                        "ok": completed.returncode == 0,
-                        "status": "sent_via_openclaw_cli" if completed.returncode == 0 else "send_failed",
-                        "message": "QQBot 直连失败，已通过 OpenClaw CLI 补发成功"
-                        if completed.returncode == 0
-                        else (stderr or stdout or "OpenClaw 主动通知发送失败"),
-                        "timestamp": datetime.now().isoformat(),
-                        "channel": route["channel"],
-                        "target": route["target"],
-                        "account": route.get("account"),
-                        "route_source": route.get("route_source"),
-                        "command": command,
-                        "exit_code": completed.returncode,
-                        "stdout": stdout,
-                        "stderr": stderr,
-                    }
-                except subprocess.TimeoutExpired:
-                    cli_result = {
-                        "ok": False,
-                        "status": "timeout",
-                        "message": f"OpenClaw CLI 补发超时（>{self._notification_timeout_seconds}s）",
-                        "timestamp": datetime.now().isoformat(),
-                        "channel": route["channel"],
-                        "target": route["target"],
-                        "account": route.get("account"),
-                        "route_source": route.get("route_source"),
-                        "command": command,
-                    }
-                except Exception as exc:
-                    cli_result = {
-                        "ok": False,
-                        "status": "error",
-                        "message": f"OpenClaw CLI 补发异常: {exc}",
-                        "timestamp": datetime.now().isoformat(),
-                        "channel": route["channel"],
-                        "target": route["target"],
-                        "account": route.get("account"),
-                        "route_source": route.get("route_source"),
-                        "command": command,
-                    }
-
+                    success_message="QQBot 直连失败，已通过 OpenClaw CLI 补发成功",
+                )
                 result["fallback"] = cli_result
                 if cli_result.get("ok"):
                     result["ok"] = True
@@ -929,75 +1182,24 @@ class MonitorEngine:
                     result["message"] = (
                         f"QQBot 直连失败，已通过 OpenClaw CLI 补发成功；原因为：{direct_result.get('message', '')}"
                     )
+                    result["effective_path"] = cli_result.get("effective_path")
+        elif channel == "feishu":
+            direct_result = self._feishu_direct_send(route, message_text)
+            result = {
+                **direct_result,
+                "primary_path": "feishu_direct_http",
+                "effective_path": direct_result.get("effective_path") if direct_result.get("ok") else None,
+            }
+            if not direct_result.get("ok"):
+                result["fallback"] = {
+                    "skipped": True,
+                    "reason": "openclaw_cli_feishu_bootstrap_hang",
+                    "message": "已跳过 OpenClaw CLI 的 Feishu 补发路径：当前已知该链路可能在 plugin bootstrap 阶段卡住",
+                    "timestamp": datetime.now().isoformat(),
+                    "primary_path": "openclaw_cli_message",
+                }
         else:
-            command = [
-                self._notification_command_resolved,
-                "message",
-                "send",
-                "--json",
-                "--channel",
-                route["channel"],
-                "--target",
-                route["target"],
-                "--message",
-                message_text,
-            ]
-            if route.get("account"):
-                command.extend(["--account", route["account"]])
-
-            try:
-                completed = subprocess.run(
-                    command,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=self._notification_timeout_seconds,
-                    check=False,
-                )
-                stdout = (completed.stdout or "").strip()
-                stderr = (completed.stderr or "").strip()
-                result = {
-                    "ok": completed.returncode == 0,
-                    "status": "sent" if completed.returncode == 0 else "send_failed",
-                    "message": "主动通知已发送" if completed.returncode == 0 else (stderr or stdout or "OpenClaw 主动通知发送失败"),
-                    "timestamp": datetime.now().isoformat(),
-                    "channel": route["channel"],
-                    "target": route["target"],
-                    "account": route.get("account"),
-                    "route_source": route.get("route_source"),
-                    "command": command,
-                    "exit_code": completed.returncode,
-                    "stdout": stdout,
-                    "stderr": stderr,
-                    "primary_path": "openclaw_cli_message",
-                }
-            except subprocess.TimeoutExpired:
-                result = {
-                    "ok": False,
-                    "status": "timeout",
-                    "message": f"主动通知发送超时（>{self._notification_timeout_seconds}s）",
-                    "timestamp": datetime.now().isoformat(),
-                    "channel": route["channel"],
-                    "target": route["target"],
-                    "account": route.get("account"),
-                    "route_source": route.get("route_source"),
-                    "command": command,
-                    "primary_path": "openclaw_cli_message",
-                }
-            except Exception as exc:
-                result = {
-                    "ok": False,
-                    "status": "error",
-                    "message": f"主动通知发送异常: {exc}",
-                    "timestamp": datetime.now().isoformat(),
-                    "channel": route["channel"],
-                    "target": route["target"],
-                    "account": route.get("account"),
-                    "route_source": route.get("route_source"),
-                    "command": command,
-                    "primary_path": "openclaw_cli_message",
-                }
+            result = self._run_openclaw_cli_send(route, message_text)
 
         delivery["dispatch"] = result
         with self._notification_dispatch_lock:
@@ -1009,7 +1211,7 @@ class MonitorEngine:
             "arm": {"push": False, "severity": "info", "dedupe_key": "arm_success"},
             "disarm": {"push": False, "severity": "info", "dedupe_key": "disarm_success"},
             "recover": {"push": False, "severity": "info", "dedupe_key": "recover_success"},
-            "action_success": {"push": True, "severity": "critical", "dedupe_key": "action_success"},
+            "action_success": {"push": False, "severity": "critical", "dedupe_key": "action_success"},
             "danger_lock": {"push": True, "severity": "critical", "dedupe_key": "danger_lock"},
             "action_failure": {"push": True, "severity": "error", "dedupe_key": "action_failure"},
             "camera_failure": {"push": True, "severity": "warning", "dedupe_key": "camera_failure"},
@@ -1394,6 +1596,16 @@ class MonitorEngine:
             self._full_alert_count = 0
             self._full_alert_cooldown_until = time.time() + max(2.0, self._notification_dedupe_window_s)
             self.state_machine.enter_danger_lock()
+            self._add_event(
+                "danger_lock",
+                "动作成功，进入危险锁定状态，需人工恢复",
+                {
+                    "triggered_by": "action_success",
+                    "safe_window_used": result.get("safe_window_used"),
+                    "risk_apps_minimized": result.get("risk_apps_minimized"),
+                    "timings": result.get("timings", {}),
+                },
+            )
             self._stop_detection()
         else:
             self._add_event("action_failure", "报警动作链执行失败", result)
@@ -1715,8 +1927,8 @@ class MonitorEngine:
             latest_notification_id = self._notifications[-1]["id"] if self._notifications else 0
         status["notification_channel"] = {
             "poll_endpoint": "/api/notifications",
-            "supported_immediate_events": ["action_success", "danger_lock", "action_failure", "camera_failure"],
-            "query_only_events": ["arm", "disarm", "recover", "action_test", "config_reload", "pre_alert"],
+            "supported_immediate_events": ["danger_lock", "action_failure", "camera_failure"],
+            "query_only_events": ["arm", "disarm", "recover", "action_test", "config_reload", "pre_alert", "action_success"],
             "pending": pending_notifications,
             "latest_id": latest_notification_id,
             "dedupe_window_s": self._notification_dedupe_window_s,

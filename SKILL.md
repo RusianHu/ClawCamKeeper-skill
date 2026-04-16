@@ -9,7 +9,7 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 
 ## 先做什么
 
-第一次接手时，不要一上来讨论 ACP、WebUI 交互或 Core 细节。先按这个顺序：
+第一次接手时，不要一上来讨论 WebUI 交互或 Core 细节。先按这个顺序：
 
 1. **确认项目根目录**
    - 当前目录应包含 `SKILL.md`、`main.py`、`requirements.txt`、`cli/`、`core/`、`webui/`
@@ -51,7 +51,7 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 
 ### OpenClaw 适配入口
 
-当需要从 OpenClaw/ACP 上下文调用时，对应桥接命令是：
+当需要从 OpenClaw 上下文调用时，对应桥接命令是：
 
 - `python .\main.py openclaw status`
 - `python .\main.py openclaw arm`
@@ -70,7 +70,7 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 
 - **唯一稳定自动化边界 = CLI JSON 输出**
 - 本地仓库排障/验证时，优先使用：`python .\main.py ... --json`
-- OpenClaw / ACP 桥接场景，再使用：`python .\main.py openclaw ...`
+- OpenClaw bridge 场景，再使用：`python .\main.py openclaw ...`
 - 不要直接操作 `core/` 内部对象
 - 不要把 WebUI 页面点击当成自动化主路径
 - 读取结果时优先看：`ok`、`message`、`data`、`timings`、`state_snapshot`、`error_type`、`debug`
@@ -143,7 +143,7 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 - `python .\main.py openclaw notifications --since-id 0 --limit 10`
 - 如果需要完整时间线，再补 `python .\main.py openclaw events --limit 10`
 - 重点关注 `action_success / danger_lock / action_failure`
-- 如果出现 `danger_lock`，必须再读一次 `status`
+- **最终是否真的锁定，以 `status` 为准**；不要只凭某一条通知下结论
 
 ### 5) 用户要改安全窗口
 按顺序：
@@ -161,14 +161,15 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 
 不要把 `session_key / session_label` 当作长期配置项持久化。它们属于当前会话语义，不属于安装后长期配置。
 
-## 通知链规则
+## Feishu / QQ 通知链规则
 
-这是最容易绕弯的地方，直接记结论：
+这是这轮最容易绕弯的地方，直接记结论：
 
-- **危险告警主路径不是 ACP**
+- **危险告警主路径是渠道直发，不是复杂会话编排**
+- **Feishu 已实测可走直连 HTTP 后备发送**
 - **QQBot 场景优先走直连 HTTP 发送**
-- OpenClaw CLI 消息发送是兜底路径，不是 QQ 的首选低延迟路径
-- ACP 更适合“把复杂 agent 工作送回某会话继续聊”，不适合危险告警主链路
+- OpenClaw CLI 消息发送是兜底路径，不是首选低延迟主路径
+- **最终业务状态以 `status` / `state_snapshot` 为准，不以单条消息为准**
 
 ### 当前通知链的正确理解
 
@@ -176,18 +177,59 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 2. 通过 `python .\main.py openclaw-context ...` 或 bridge 自动注册上下文
 3. 危险事件进入通知队列后：
    - **QQBot**：优先直连 QQ HTTP API 发送
-   - 若直连失败：退回 OpenClaw CLI 消息发送兜底
+   - **Feishu**：优先走 Feishu 直连发送能力
+   - 若渠道直发失败：退回 OpenClaw CLI 消息发送兜底
    - 其他渠道：默认走 OpenClaw CLI 发送
+
+### Feishu 接入最佳实践（2026-04-16 实测后收束）
+
+1. 先启动服务：`python .\main.py run`
+2. 先看健康状态：`python .\main.py doctor --json`
+3. 再看会话绑定：`python .\main.py openclaw-context-show`
+4. 确认当前上下文至少包含：
+   - `channel=feishu`
+   - `target=user:ou_xxx`（私聊）或真实群目标
+   - `account=default`
+5. 做一次烟雾测试：`python .\main.py notification-test --message "smoke test" --json`
+6. 回读 `status.notification_channel.last_dispatch`：
+   - 看 `ok`
+   - 看 `status`
+   - 看 `effective_path` / `primary_path`
+   - Feishu 当前实测成功路径可见 `sent_via_direct_http` / `feishu_direct_http`
+7. 再执行武装与真人触发测试
+8. 触发后不要只看“有没有消息”，还要回读：
+   - `python .\main.py status --json`
+   - `python .\main.py events --limit 10 --json`
+   - `python .\main.py notifications --since-id 0 --limit 10`
+
+### 这轮 Feishu 联调踩过的坑
+
+- **不要在摄像头未恢复时，把“armed”当成“已可实测”**
+  - 真正要看的是 `camera_available=true` 且 `is_protecting=true`
+- **不要把中途状态当最终结论**
+  - `action_success` 消息到了，不等于最终业务状态已经稳定
+  - 是否已进入危险锁定，要以 `status.arm_state=danger_locked`、`is_locked=true` 为准
+- **Feishu 链路是否通，不要靠猜**
+  - 先看 `openclaw-context-show`
+  - 再看 `status.notification_channel.last_dispatch`
+- **不要一怀疑旧进程就先手工乱杀**
+  - 优先 `service-stop` / `service-restart --json`
+  - 只在内置控制失效时，再 `netstat/taskkill`
+- **联调时仍要区分“主动消息”与“最终状态”**
+  - 当前实现已调整为优先把最终锁定态表达为 `danger_lock`
+  - 但联调时仍应回读 `status`，不要只凭消息文案做最终判断
 
 ### 做回推联调时的顺序
 
 1. 启动服务：`python .\main.py run`
 2. 注册上下文：`python .\main.py openclaw-context --channel <channel> --target <target> --account <account>`
 3. 确认上下文：`python .\main.py openclaw-context-show`
-4. 武装：`python .\main.py openclaw arm`
-5. 人工触发告警
-6. 检查渠道是否收到主动提醒
-7. 必要时再查 `notifications` / `events` / `status.notification_channel`
+4. 做烟雾测试：`python .\main.py notification-test --message "smoke test" --json`
+5. 武装：`python .\main.py openclaw arm`
+6. 人工触发告警
+7. 检查渠道是否收到主动提醒
+8. 必要时再查 `notifications` / `events` / `status.notification_channel`
+9. 最后回读 `status`，确认最终业务状态
 
 ## 常见坑
 
@@ -206,8 +248,9 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 - 看起来启动了，但实际跑的是旧代码
 
 处理：
-- 先找占用 8765 的旧进程
-- 清掉旧进程后再启动新实例
+- 优先 `python .\main.py service-stop --json`
+- 再 `python .\main.py service-restart --json`
+- 只在内置生命周期命令失效时，再手工查 PID
 - 否则你以为在测新代码，实际测的是旧版本
 
 ### 通知上下文为空
@@ -216,7 +259,7 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 
 处理：
 - 先注册 `openclaw-context`
-- 再做告警联调
+- 再做烟雾测试与告警联调
 
 ### WebUI 暴露到局域网/外网的边界
 症状：

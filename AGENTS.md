@@ -7,19 +7,22 @@
 - 工位摸鱼防护，不泛化成安防平台。
 - 报警成功 = **已切到安全态**。
 - 本地优先；远程只发起控制与查询，不替代本地执行链。
-- 需要时尽可能的了解openclaw ACP 的用法： https://docs.openclaw.ai/zh-CN/cli/acp 
+- 文档与自动化说明以 **CLI / bridge / 渠道回推实测** 为准，不写和当前方案无关的概念噪音。
 
 ## 边界
 - 不做人脸/身份识别。
 - 不做重度取证/长期图像留存。
 - 不做自动恢复原窗口；恢复必须人工显式触发。
-- 不让 OpenClaw / ACP 直接操作 Core 内部对象。
+- 不让 OpenClaw bridge 直接操作 Core 内部对象。
 - 不让远程控制依赖打开 WebUI 页面链路。
 
 ## 当前 phase 结论
 - Phase 0~5：已完成。
 - 已完成：MVP 报警闭环、可靠性增强、OpenClaw 接入、轻量可观察性、风格化体验。
-- 外部阻塞：[`openclaw agent --local`](SKILL.md) / chat 直通仍受 provider token / embedded model 鉴权状态影响，不影响本地 skill 仓库结构与 CLI/bridge 调用。
+- 当前已完成的通知适配结论：
+  - QQ 已实测打通当前会话主动回推
+  - Feishu 已实测打通当前会话主动回推
+  - 最终业务状态必须回读 `status`，不能只看单条通知文案
 
 若缺这些，不要盲调命令，先定位到 skill 仓库根目录。
 
@@ -31,7 +34,7 @@
 ## 自动化稳定边界
 - **唯一稳定自动化边界 = CLI JSON**。
 - WebUI 面向人工；自动化不要依赖页面点击。
-- OpenClaw / ACP 默认经由 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py) → [`cli/main.py`](cli/main.py) → Core。
+- OpenClaw 默认经由 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py) → [`cli/main.py`](cli/main.py) → Core。
 - 结果必须以机器可读字段为准：`ok / message / data / timings / source / state_snapshot`。
 
 ## 状态机
@@ -103,6 +106,7 @@
 ## Agent 行为准则
 - 先保命，再美化。
 - 先读状态，再做写操作。
-- 先本地 CLI 调通，再谈 openclaw ACP / chat。
+- 先本地 CLI 调通，再谈通知联调。
 - 报告先给结论，再给关键状态，再给耗时/错误。
 - 若用户要求“安装这个 GitHub skill”，默认目标应是：把**整个仓库**放入 skill 工作区，而不是只复制 skill 子目录。
+- 更新文档时，优先保留**已实测有效**的路径，删掉会误导下一位维护者的历史噪音。
