@@ -66,9 +66,14 @@ python .\main.py run
 ### 处理
 ```powershell
 python .\main.py openclaw-context-show
-python .\main.py openclaw-context --channel feishu --target user:ou_xxx --account default
+python .\main.py openclaw-context --channel qqbot --target qqbot:c2c:YOUR_TARGET --account default
 python .\main.py notification-test --message "smoke test" --json
 ```
+
+如果你当前主要在 QQ 私聊联调，再补一层稳妥配置：
+- `routes.qqbot.target` 指向同一个 `qqbot:c2c:...`
+- `fallback.channel/target` 也指向同一个 QQ 目标
+- 如果真人测试经常隔很久，再适当调大 `context_ttl_seconds`
 
 然后再做告警联调。
 
@@ -210,7 +215,51 @@ python .\main.py service-stop
 
 ---
 
-## 10. Feishu 接入的几个实战提醒
+## 10. QQ 接入的几个实战提醒
+
+### 先看上下文，再看消息
+先确认：
+- `channel=qqbot`
+- `target=qqbot:c2c:...`
+- `account=default`
+
+再去看消息是否成功发回。
+
+### 单人单渠道起步时，先把 fallback 也配到同一个 QQ 会话
+这是这轮补出来的一条很实用的经验。
+
+如果你当前主要就是在一个 QQ 私聊里联调：
+- `openclaw-context` 绑定当前 QQ 聊天
+- `routes.qqbot.target` 指向同一个 QQ 聊天
+- `fallback.channel/target` 也先指向同一个 QQ 聊天
+
+这样即使活动上下文 TTL 过期，危险通知仍会回到同一个对话，不容易误判成“系统没发”。
+
+### 人工测试隔得久，记得重绑上下文或调大 TTL
+如果你是先配置好，然后过很久才真人触发：
+- 先重新执行一次 `openclaw-context`
+- 或把 `context_ttl_seconds` 调大到更适合你的联调节奏
+
+### 先看 `last_dispatch`，再猜发送路径
+最有用的位置是：
+- `status.notification_channel.last_dispatch`
+
+重点看：
+- `ok`
+- `status`
+- `route_source`
+- `effective_path`
+- `primary_path`
+
+如果 `route_source` 从 `active_context` 变成 `fallback`，不一定是故障；也可能只是活动上下文过期后，兜底路由正常接管。
+
+### 别把“收到消息”误当“最终已锁定”
+收到消息只说明**有事件被投递**。
+最终是否已锁定，必须再回读 `status`。
+
+---
+
+## 11. Feishu 接入的几个实战提醒
 
 ### 先看健康状态，再让用户触发真人测试
 如果 `camera_available=false` 或 `is_protecting=false`，就别让用户白演一轮。

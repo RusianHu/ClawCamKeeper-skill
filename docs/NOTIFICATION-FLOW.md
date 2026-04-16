@@ -69,16 +69,21 @@
 
 ## 已验证联调结果
 
-### QQ（2026-04-14）
+### QQ（2026-04-16 收束）
 
-在 Windows 11 本机环境下，以下链路已经完成真人联调与重复压测：
+在 Windows 11 本机环境下，围绕 QQBot 当前会话接入，以下链路已经完成真人联调与补充验证：
 
 - 当前 QQ 私聊上下文注册成功
+- `notification-test` 烟雾测试成功
 - 真人摄像头触发成功
 - 状态推进 `pre_alert -> full_alert -> danger_locked`
 - 动作链执行成功（安全窗口切换 / 风险程序最小化）
 - QQBot 直连 HTTP 主动回推成功
-- 多轮重复压测后仍能成功落锁
+- 即使活动上下文 TTL 过期，只要 `fallback` 仍指向同一个 QQ 会话，危险通知仍能成功送达
+
+这轮 QQ 联调后，最重要的新结论是：
+
+> **QQ 当前聊天回推不应只依赖“活动上下文还活着”。真正稳的做法，是把 `openclaw-context` 作为当前聊天绑定，把 `routes.qqbot` / `fallback` 作为同频道兜底。**
 
 ### Feishu（2026-04-16）
 
@@ -151,6 +156,27 @@
    python .\main.py service-stop
    ```
 
+## QQ 联调最容易踩的坑
+
+### 1. 只注册当前上下文，不配同频道 fallback
+如果活动上下文 TTL 过期，而 `fallback` 又指向别的渠道或别的目标，现场就很容易误判成“QQ 没收到提醒”。
+
+更稳的起步做法是：
+- `openclaw-context` 绑定当前 QQ 聊天
+- `routes.qqbot.target` 指向同一个 QQ 聊天
+- `fallback.channel/target` 也先指向同一个 QQ 聊天
+
+### 2. 人工测试隔太久，忘了上下文会过期
+如果你是先注册上下文，过了很久才真人触发：
+- 先重新执行一次 `openclaw-context`
+- 或把 `context_ttl_seconds` 调大到符合你的联调节奏
+
+### 3. 只看“QQ 有没有收到消息”，不回读最终状态
+收到消息只说明有事件送达；是否最终锁定，仍要以：
+- `arm_state=danger_locked`
+- `is_locked=true`
+为准。
+
 ## Feishu 联调最容易踩的坑
 
 ### 1. “显示 armed” 不等于已经可以实测
@@ -185,6 +211,7 @@ python .\main.py service-restart --json
 - 当前事件是否属于主动推送事件（如 `action_success` / `danger_lock`）
 - 渠道直发是否失败
 - CLI 兜底是否也失败
+- **活动上下文是否已经过期，而 `fallback` 又没有指向正确的 QQ / Feishu 目标**
 
 ### 2. 你以为在测新代码，实际上跑的是旧实例
 症状：

@@ -1,10 +1,10 @@
 """
-OpenClaw / ACP 薄适配层。
+OpenClaw 薄适配层。
 
 设计原则：
 - 只通过当前项目 CLI 的 JSON 输出作为稳定边界
 - 不直接操作 Core 内部对象
-- 为 OpenClaw / ACP 提供统一、机器可读的返回结构
+- 为 OpenClaw 提供统一、机器可读的返回结构
 """
 
 from __future__ import annotations
@@ -379,7 +379,7 @@ def openclaw_bridge(
     target: Optional[str],
     account: Optional[str],
 ) -> None:
-    """OpenClaw / ACP 适配命令。"""
+    """OpenClaw 适配命令。"""
     ctx.ensure_object(dict)
     ctx.obj["config_path"] = config_path
     ctx.obj["session_key"] = session_key

@@ -41,9 +41,9 @@
 - **Core**：本地常驻监控核心，负责状态机、双阶段判断、报警动作链
 - **CLI**：主要控制入口，便于自动化调用、调试、自检、状态查询
 - **WebUI**：负责状态展示、配置编辑、配置文件落盘、分类热加载、校准、轻量调试
-- **openclaw / ACP**：作为外部控制、会话承载与消息转发层，不替代本地执行主链路
+- **OpenClaw**：作为外部控制、会话承载与消息转发层，不替代本地执行主链路
 - **约束**：CLI 负责控制与查询，持续监控由 Core 常驻承担
-- **约束**：openclaw / ACP 默认通过 CLI 的机器可读接口调用，不直接操作 Core 内部对象
+- **约束**：OpenClaw 默认通过 CLI 的机器可读接口调用，不直接操作 Core 内部对象
 - **约束**：远程控制不依赖打开 WebUI 浏览器链路
 - **约束**：关键状态与检查命令应支持机器可读输出
 
@@ -182,16 +182,16 @@
 # Phase 3｜openclaw 接入
 
 ## 目标
-把本地防护工具变成真正的 openclaw skill，并通过 ACP 建立稳定的远程控制入口；远程负责发起控制意图，本地仍是实际检测、触发与执行的第一责任链路。
+把本地防护工具变成真正的 OpenClaw skill，并建立稳定的远程控制入口；远程负责发起控制意图，本地仍是实际检测、触发与执行的第一责任链路。
 
 ## 核心原则
-- openclaw / ACP 是外部控制层，不是本地 Core 的替代执行器
+- OpenClaw 是外部控制层，不是本地 Core 的替代执行器
 - 远程调用默认经由 CLI 的 JSON 模式完成，不直接操作 Core 内部对象
 - WebUI 面向人工可视操作；CLI 才是远程自动化的稳定边界
-- ACP 负责会话、消息、调用编排与结果转发，不负责替代本地动作链
+- OpenClaw 负责会话、消息、调用编排与结果转发，不负责替代本地动作链
 - 所有自动化结果必须保留机器可读字段，不能退化为仅人类可读文本
 - 任何远程能力都不得破坏“本地优先、危险锁定需手动恢复”的总原则
-- openclaw / ACP 侧故障默认只影响远程入口，不影响本地 Core 常驻能力
+- OpenClaw 侧故障默认只影响远程入口，不影响本地 Core 常驻能力
 
 ## 首批远程能力面
 - status
@@ -205,13 +205,13 @@
 - notifications（轻量通知队列，只读、限量）
 
 ## TODO
-- [x] 固化 openclaw skill 结构、工作目录与配置注入方式
-- [x] 打通 ACP → 本地 CLI(JSON) → Core 的最小调用链
+- [x] 固化 OpenClaw skill 结构、工作目录与配置注入方式
+- [x] 打通 OpenClaw → 本地 CLI(JSON) → Core 的最小调用链
 - [x] 固化首批远程命令白名单：status / doctor / arm / disarm / recover / config-show / set-safe-window / events / notifications
 - [x] 统一机器可读返回结构：ok / message / data / timings / source / state_snapshot
 - [x] 统一错误语义：参数非法 / 当前状态不允许 / 本地服务未运行 / CLI 调用失败 / 动作失败 / 调用超时
 - [x] 接入消息转发通道（成功 / 失败 / 锁定 / 需人工恢复）
-- [x] 约束 openclaw / ACP 不直接调用 WebUI 页面链路，不直接操作 Core 内部对象
+- [x] 约束 OpenClaw 不直接调用 WebUI 页面链路，不直接操作 Core 内部对象
 
 ## 执行拆解
 
@@ -247,18 +247,18 @@
 - [x] 保证消息转发失败不影响本地动作链执行
 
 ### 3E｜调试与联调
-- [x] 先用本地 CLI(JSON) 完成单机调试，再接 ACP
+- [x] 先用本地 CLI(JSON) 完成单机调试，再接 OpenClaw 远程入口
 - [x] 用 status / doctor / action-test 建立联调前置检查清单
 - [x] 分开验证 quick 与 full 两条检查路径
-- [x] 验证本地服务未运行、Gateway 不可达、ACP 调用超时、CLI 非零退出码的处理
+- [x] 验证本地服务未运行、Gateway 不可达、远程调用超时、CLI 非零退出码的处理
 - [x] 保留最小可复现日志：请求参数、CLI stdout/stderr、退出码、关键 timings
 - [x] 为远程修改安全窗口后即时生效建立回归检查步骤
 
 ### 3F｜验收、回退与上线约束
 - [x] 提供 Phase 3 验收脚本或手工清单
 - [x] 提供“关闭 openclaw 接入后仍可纯本地运行”的回退路径
-- [x] 约束 openclaw / ACP 侧故障不得阻塞本地 Core 常驻
-- [x] 明确 Gateway / ACP 故障时的降级提示与人工操作建议
+- [x] 约束 OpenClaw 侧故障不得阻塞本地 Core 常驻
+- [x] 明确 Gateway / OpenClaw 侧故障时的降级提示与人工操作建议
 - [x] 把 Phase 3 完成条件映射到后续 Phase 4 的事件与观察能力
 
 ## 远程动作映射草案
@@ -301,13 +301,13 @@
 - [ ] `openclaw agent --local` 直通 chat 指令验证仍受当前 embedded model 鉴权阻塞（401 invalid access token or token expired）
 
 ## 验收
-- [ ] openclaw 可通过 ACP 作为外部控制入口使用
-- [x] ACP 调用链以 CLI(JSON) 为唯一稳定自动化边界
+- [x] OpenClaw 可作为外部控制入口使用
+- [x] OpenClaw 调用链以 CLI(JSON) 为唯一稳定自动化边界
 - [x] 远程 `status / doctor / arm / disarm / config-show / set-safe-window / events / notifications` 全部跑通
 - [x] `recover` 已验证显式恢复语义与非锁定态拒绝返回
 - [x] `danger_locked -> recover` 成功路径已在本地 API / 状态机层专项验证通过
 - [x] 本地仍是实际触发与执行的第一责任链路
-- [x] openclaw / ACP 故障不会破坏本地纯 CLI / WebUI 能力
+- [x] OpenClaw 侧故障不会破坏本地纯 CLI / WebUI 能力
 - [x] 危险锁定期间的远程行为符合白名单，不会绕过手动恢复语义
 
 ---
@@ -362,7 +362,7 @@
 ## 当前阶段结论
 - [x] 已达到“WebUI 可见可控的本地报警逻辑阶段”
 - [x] WebUI 已不再只是状态展示与开关控制，而是具备本地配置编辑、落盘与热加载反馈能力
-- [x] 已完成 openclaw / ACP 薄适配层、本地 skill 落位、桥接自测与主命令联调
+- [x] 已完成 OpenClaw 薄适配层、本地 skill 落位、桥接自测与主命令联调
 - [x] 已补齐轻量通知、动作结果、时间线、远程动作矩阵、会话规则与轻量证据策略展示
 - [x] 已形成“本地战术控制台”风格的 WebUI，并保持武装/危险态集中增强而非日常打扰
 - [ ] openclaw chat 指令直通验证仍受当前 embedded model 鉴权阻塞

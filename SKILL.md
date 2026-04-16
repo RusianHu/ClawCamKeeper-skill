@@ -1,6 +1,7 @@
 ---
 name: clawcamkeeper-openclaw
 description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenClaw 接入、工位防护、危险锁定、安全窗口、告警回推、QQ/Feishu 通知、动作链测试、继续昨天的 ClawCamKeeper 调试、或者要求安装/启动/排障/修改这个项目时，必须优先使用本技能。适用于安装 skill、启动本地服务、查看状态、健康检查、武装/解除武装/恢复、修改主备安全窗口、查看事件与通知、验证消息回推链路、排查端口占用/旧进程/上下文未注册等问题。
+metadata: {"openclaw":{"os":["win32"],"requires":{"bins":["python"]}}}
 ---
 
 # ClawCamKeeper OpenClaw Skill
@@ -181,6 +182,27 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
    - 若渠道直发失败：退回 OpenClaw CLI 消息发送兜底
    - 其他渠道：默认走 OpenClaw CLI 发送
 
+### QQ 接入最佳实践（2026-04-16 收束）
+
+1. 先启动到新代码：`python .\main.py service-restart --json`
+2. 注册当前 QQ 会话上下文：`python .\main.py openclaw-context --channel qqbot --target qqbot:c2c:YOUR_TARGET --account default`
+3. 查看上下文：`python .\main.py openclaw-context-show`
+4. 先做烟雾测试：`python .\main.py notification-test --message "qq smoke test" --json`
+5. 回读 `status.notification_channel.last_dispatch`
+6. 再武装并做真人触发
+7. 最后回读：
+   - `python .\main.py status --json`
+   - `python .\main.py events --limit 10 --json`
+   - `python .\main.py notifications --since-id 0 --limit 10`
+
+重点记住：
+
+- **当前聊天绑定靠 `openclaw-context`，不要把 session 信息写死进配置文件**
+- **如果会隔很久才做真人触发，先重新注册一次上下文，或者把 `context_ttl_seconds` 配够**
+- **单人单渠道起步时，建议把 `routes.qqbot` 与 `fallback` 都先指向同一个 QQ 会话**
+  - 这样即使活动上下文 TTL 过期，也会回到同一个 QQ 私聊
+  - 不然很容易误判成“没发消息”，其实只是发去了别的默认目标
+
 ### Feishu 接入最佳实践（2026-04-16 实测后收束）
 
 1. 先启动服务：`python .\main.py run`
@@ -260,6 +282,18 @@ description: 当用户提到 ClawCamKeeper 仓库、这个 skill 本身、OpenCl
 处理：
 - 先注册 `openclaw-context`
 - 再做烟雾测试与告警联调
+
+### 通知上下文为空或过期
+症状：
+- 告警能进本地通知队列，但发不回当前聊天
+- 或 `openclaw-context-show` 里上下文已经不再 `active`
+- 或 `status.notification_channel.last_dispatch.route_source` 从 `active_context` 变成 `fallback`
+
+处理：
+- 先重新注册 `openclaw-context`
+- 再做烟雾测试与告警联调
+- 如果当前主要在 QQ 单聊联调，建议把 `routes.qqbot` 与 `fallback` 都先配成同一个 `qqbot:c2c:...`
+- 如果人工测试经常间隔较长，适当调大 `context_ttl_seconds`
 
 ### WebUI 暴露到局域网/外网的边界
 症状：

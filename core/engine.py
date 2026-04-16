@@ -1263,7 +1263,7 @@ class MonitorEngine:
         ).start()
 
     def get_notifications(self, since_id: int = 0, limit: int = 20) -> list[dict[str, Any]]:
-        """返回轻量通知队列，供 ACP / WebUI 轮询。"""
+        """返回轻量通知队列，供 OpenClaw / WebUI 轮询。"""
         with self._notifications_lock:
             items = [deepcopy(item) for item in self._notifications if item.get("id", 0) > since_id]
         return items[:limit] if limit > 0 else items

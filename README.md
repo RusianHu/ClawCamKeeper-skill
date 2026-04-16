@@ -152,14 +152,16 @@ OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py
 
 ### 已验证联调结果
 
-#### QQ（2026-04-14）
+#### QQ（2026-04-16 收束）
 
-截至 2026-04-14，已完成：
+截至 2026-04-16，围绕 QQBot 当前会话接入，又补齐并确认了这几条关键经验：
 
-- 自动化 `action-test --full-check` 回归通过
-- 真人摄像头触发联调通过
-- 多轮重复压测通过
-- 当前 QQ 会话主动回推通过
+- 当前 QQ 私聊上下文注册成功
+- `notification-test` 烟雾测试成功
+- 真人摄像头触发联调成功
+- 动作链执行成功，最终状态进入 `danger_locked`
+- 即使当前活动上下文 TTL 过期，只要 `fallback` 仍指向同一个 QQ 会话，危险通知依旧能成功送达
+- `status.notification_channel.last_dispatch` 可见成功状态，且 `route_source` 可能从 `active_context` 变为 `fallback`
 
 这意味着以下链路已被实际验证：
 
@@ -168,6 +170,7 @@ OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py
 3. 动作链执行安全窗口切换与风险程序最小化
 4. 系统最终进入 `danger_locked`
 5. 当前 QQ 会话收到主动提醒
+6. 当前上下文过期后，只要 fallback 配置正确，QQ 仍不会漏消息
 
 #### Feishu（2026-04-16）
 
@@ -186,6 +189,41 @@ OpenClaw 适配命令入口见 [`cli/openclaw_bridge.py`](cli/openclaw_bridge.py
 2. 最终状态判断必须回读 `status`
 3. 当前实现已调整为优先把最终锁定态通知为 `danger_lock`
 4. 但最终业务状态仍必须通过 `status` 回读确认
+
+### QQ 接入最佳实践（2026-04-16 收束）
+
+建议新用户第一次接入 QQBot 时，直接按这个顺序做：
+
+1. 启动或重启到新代码：`python .\main.py service-restart --json`
+2. 注册当前 QQ 会话上下文：
+   - `python .\main.py openclaw-context --channel qqbot --target qqbot:c2c:YOUR_TARGET --account default`
+3. 先看上下文：`python .\main.py openclaw-context-show`
+4. 再做烟雾测试：`python .\main.py notification-test --message "qq smoke test" --json`
+5. 回读 `status.notification_channel.last_dispatch`
+6. 确认保护状态正常后再武装：`python .\main.py openclaw arm`
+7. 人工触发危险事件
+8. 最后回读：
+   - `python .\main.py status --json`
+   - `python .\main.py events --limit 10 --json`
+   - `python .\main.py notifications --since-id 0 --limit 10`
+
+重点检查：
+
+- `channel=qqbot`
+- `target=qqbot:c2c:...`
+- `camera_available=true`
+- `is_protecting=true`
+- `last_dispatch.ok=true`
+- 最终 `arm_state=danger_locked`
+- 最终 `is_locked=true`
+
+这轮补出来的关键经验有三条：
+
+1. **当前聊天绑定要靠 `openclaw-context`，不要把 session 信息写死进配置文件**
+2. **如果人工测试可能隔很久才触发，先重新注册一次上下文，或者把 `context_ttl_seconds` 配够**
+3. **新用户单人单渠道部署时，建议把 `routes.qqbot` 和 `fallback` 都先指向同一个 QQ 会话**
+   - 这样即使活动上下文过期，危险通知也会落到同一个聊天
+   - 否则很容易出现“系统其实发了，但发去别的默认渠道”，现场会误判成没告警
 
 ### Feishu 联调最佳实践
 
@@ -294,7 +332,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\test_openclaw_bridge.ps1
 - **默认通知去哪儿**：用 `routes` / `fallback` 配
 - **当前这次聊天该回到哪儿**：用 `openclaw-context` 注册
 
-OpenClaw 通知配置示例：
+OpenClaw 通知配置示例（以 **QQBot 单人私聊接入** 为推荐起步配置）：
 
 ```yaml
 openclaw:
@@ -312,8 +350,8 @@ openclaw:
         target: ""
         account: "default"
     fallback:
-      channel: "feishu"
-      target: "user:ou_xxx"
+      channel: "qqbot"
+      target: "qqbot:c2c:YOUR_TARGET"
       account: "default"
 ```
 
@@ -322,6 +360,8 @@ openclaw:
 - `enabled=true` 后才会真正主动回推
 - `routes` 用于静态补全渠道路由
 - `fallback` 用于当前没有活动上下文时的兜底路由
+- **新用户如果当前主要在 QQ 私聊联调，推荐先把 `fallback` 也指向同一个 QQ 会话**
+- **如果人工测试常常会隔很久才做，记得重新注册 `openclaw-context`，或者适当调大 `context_ttl_seconds`**
 - `session_key / session_label` 不建议写入配置文件，应由运行时 `openclaw-context` 注册
 - 最近一次上下文与分发结果可从 `openclaw-context-show` / `status.notification_channel` 查看
 

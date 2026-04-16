@@ -39,12 +39,12 @@ openclaw:
     message_prefix: "[ClawCamKeeper]"
     routes:
       qqbot:
-        target: "qqbot:c2c:YOUR_TARGET"
-        account: "default"
-      feishu:
         target: ""
         account: ""
+      feishu:
+        target: "user:ou_82340de4b504d3fafb6c71e5167669bf"
+        account: "default"
     fallback:
-      channel: "qqbot"
-      target: "qqbot:c2c:YOUR_TARGET"
+      channel: "feishu"
+      target: "user:ou_82340de4b504d3fafb6c71e5167669bf"
       account: "default"

@@ -42,8 +42,8 @@ openclaw:
         target: qqbot:c2c:BBD5BE9523E5F99487345D9CADECEC2B
         account: default
       feishu:
-        target: null
-        account: null
+        target: user:ou_82340de4b504d3fafb6c71e5167669bf
+        account: default
     fallback:
       channel: qqbot
       target: qqbot:c2c:BBD5BE9523E5F99487345D9CADECEC2B
